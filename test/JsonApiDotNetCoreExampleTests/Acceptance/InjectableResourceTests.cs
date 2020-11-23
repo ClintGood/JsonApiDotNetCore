@@ -19,20 +19,14 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
         private readonly TestFixture<TestStartup> _fixture;
         private readonly AppDbContext _context;
         private readonly Faker<Person> _personFaker;
-        private readonly Faker<TodoItem> _todoItemFaker;
         private readonly Faker<Passport> _passportFaker;
         private readonly Faker<Country> _countryFaker;
-        private readonly Faker<Visa> _visaFaker;
 
         public InjectableResourceTests(TestFixture<TestStartup> fixture)
         {
             _fixture = fixture;
             _context = fixture.GetRequiredService<AppDbContext>();
 
-            _todoItemFaker = new Faker<TodoItem>()
-                .RuleFor(t => t.Description, f => f.Lorem.Sentence())
-                .RuleFor(t => t.Ordinal, f => f.Random.Number())
-                .RuleFor(t => t.CreatedDate, f => f.Date.Past());
             _personFaker = new Faker<Person>()
                 .RuleFor(t => t.FirstName, f => f.Name.FirstName())
                 .RuleFor(t => t.LastName, f => f.Name.LastName());
@@ -41,8 +35,6 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
                 .RuleFor(t => t.SocialSecurityNumber, f => f.Random.Number(100, 10_000));
             _countryFaker = new Faker<Country>()
                 .RuleFor(c => c.Name, f => f.Address.Country());
-            _visaFaker = new Faker<Visa>()
-                .RuleFor(v => v.ExpiresAt, f => f.Date.Future());
         }
 
         [Fact]
@@ -75,7 +67,6 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
         {
             // Arrange
             await _context.ClearTableAsync<Passport>();
-            await _context.SaveChangesAsync();
 
             var passports = _passportFaker.Generate(3);
             foreach (var passport in passports)
@@ -107,12 +98,11 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
             }
         }
 
-        [Fact(Skip = "Requires fix for https://github.com/dotnet/efcore/issues/20502")]
+        [Fact]
         public async Task Can_Get_Passports_With_Filter()
         {
             // Arrange
             await _context.ClearTableAsync<Passport>();
-            await _context.SaveChangesAsync();
 
             var passports = _passportFaker.Generate(3);
             foreach (var passport in passports)
@@ -147,12 +137,11 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
             Assert.Equal("Joe", document.Included[0].Attributes["firstName"]);
         }
 
-        [Fact(Skip = "https://github.com/dotnet/efcore/issues/20502")]
+        [Fact]
         public async Task Can_Get_Passports_With_Sparse_Fieldset()
         {
             // Arrange
             await _context.ClearTableAsync<Passport>();
-            await _context.SaveChangesAsync();
 
             var passports = _passportFaker.Generate(2);
             foreach (var passport in passports)
@@ -200,9 +189,8 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
         public async Task Fail_When_Deleting_Missing_Passport()
         {
             // Arrange
-            string passportId = HexadecimalObfuscationCodec.Encode(1234567890);
 
-            var request = new HttpRequestMessage(HttpMethod.Delete, "/api/v1/passports/" + passportId);
+            var request = new HttpRequestMessage(HttpMethod.Delete, "/api/v1/passports/1234567890");
 
             // Act
             var response = await _fixture.Client.SendAsync(request);
@@ -215,7 +203,7 @@ namespace JsonApiDotNetCoreExampleTests.Acceptance
             Assert.Single(errorDocument.Errors);
             Assert.Equal(HttpStatusCode.NotFound, errorDocument.Errors[0].StatusCode);
             Assert.Equal("The requested resource does not exist.", errorDocument.Errors[0].Title);
-            Assert.Equal("Resource of type 'passports' with ID '" + passportId + "' does not exist.", errorDocument.Errors[0].Detail);
+            Assert.Equal("Resource of type 'passports' with ID '1234567890' does not exist.", errorDocument.Errors[0].Detail);
         }
     }
 }

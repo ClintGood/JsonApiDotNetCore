@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using JsonApiDotNetCore.Resources;
 
@@ -13,8 +14,9 @@ namespace JsonApiDotNetCore.Services
         where TResource : class, IIdentifiable<TId>
     {
         /// <summary>
-        /// Handles a json:api request to update an existing resource.
+        /// Handles a json:api request to update the attributes and/or relationships of an existing resource.
+        /// Only the values of sent attributes are replaced. And only the values of sent relationships are replaced.
         /// </summary>
-        Task<TResource> UpdateAsync(TId id, TResource resource);
+        Task<TResource> UpdateAsync(TId id, TResource resource, CancellationToken cancellationToken);
     }
 }

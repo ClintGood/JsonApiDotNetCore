@@ -14,16 +14,6 @@ namespace JsonApiDotNetCoreExample.Models
         private readonly ISystemClock _systemClock;
         private int? _socialSecurityNumber;
 
-        protected override string GetStringId(int value)
-        {
-            return HexadecimalObfuscationCodec.Encode(value);
-        }
-
-        protected override int GetTypedId(string value)
-        {
-            return HexadecimalObfuscationCodec.Decode(value);
-        }
-
         [Attr]
         public int? SocialSecurityNumber
         {
@@ -51,7 +41,7 @@ namespace JsonApiDotNetCoreExample.Models
         [NotMapped]
         public string BirthCountryName
         {
-            get => BirthCountry.Name;
+            get => BirthCountry?.Name;
             set
             {
                 BirthCountry ??= new Country();
@@ -61,15 +51,6 @@ namespace JsonApiDotNetCoreExample.Models
 
         [EagerLoad]
         public Country BirthCountry { get; set; }
-
-        [Attr(Capabilities = AttrCapabilities.All & ~(AttrCapabilities.AllowCreate | AttrCapabilities.AllowChange))]
-        [NotMapped]
-        public string GrantedVisaCountries => GrantedVisas == null || !GrantedVisas.Any()
-            ? null
-            : string.Join(", ", GrantedVisas.Select(v => v.TargetCountry.Name));
-
-        [EagerLoad]
-        public ICollection<Visa> GrantedVisas { get; set; }
 
         public Passport(AppDbContext appDbContext)
         {

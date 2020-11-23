@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Controllers;
@@ -40,12 +41,15 @@ namespace UnitTests
                 IGetSecondaryService<Resource, int> getSecondary = null,
                 IGetRelationshipService<Resource, int> getRelationship = null,
                 ICreateService<Resource, int> create = null,
+                IAddToRelationshipService<Resource, int> addToRelationship = null,
                 IUpdateService<Resource, int> update = null,
-                IUpdateRelationshipService<Resource, int> updateRelationships = null,
-                IDeleteService<Resource, int> delete = null)
-                : base(options, loggerFactory, getAll, getById, getSecondary, getRelationship, create,
-                    update, updateRelationships, delete)
-            { }
+                ISetRelationshipService<Resource, int> setRelationship = null,
+                IDeleteService<Resource, int> delete = null,
+                IRemoveFromRelationshipService<Resource, int> removeFromRelationship = null)
+                : base(options, loggerFactory, getAll, getById, getSecondary, getRelationship, create, addToRelationship,
+                    update, setRelationship, delete, removeFromRelationship)
+            {
+            }
         }
 
         [Fact]
@@ -56,10 +60,10 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, getAll: serviceMock.Object);
 
             // Act
-            await controller.GetAsync();
+            await controller.GetAsync(CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.GetAsync(), Times.Once);
+            serviceMock.Verify(m => m.GetAsync(CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -69,7 +73,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, null);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetAsync());
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetAsync(CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -85,10 +89,10 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, getById: serviceMock.Object);
 
             // Act
-            await controller.GetAsync(id);
+            await controller.GetAsync(id, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.GetAsync(id), Times.Once);
+            serviceMock.Verify(m => m.GetAsync(id, CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -99,7 +103,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetAsync(id));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetAsync(id, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -115,10 +119,10 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, getRelationship: serviceMock.Object);
 
             // Act
-            await controller.GetRelationshipAsync(id, string.Empty);
+            await controller.GetRelationshipAsync(id, string.Empty, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.GetRelationshipAsync(id, string.Empty), Times.Once);
+            serviceMock.Verify(m => m.GetRelationshipAsync(id, string.Empty, CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -129,7 +133,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetRelationshipAsync(id, string.Empty));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetRelationshipAsync(id, string.Empty, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -145,10 +149,10 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, getSecondary: serviceMock.Object);
 
             // Act
-            await controller.GetSecondaryAsync(id, string.Empty);
+            await controller.GetSecondaryAsync(id, string.Empty, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.GetSecondaryAsync(id, string.Empty), Times.Once);
+            serviceMock.Verify(m => m.GetSecondaryAsync(id, string.Empty, CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -159,7 +163,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetSecondaryAsync(id, string.Empty));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.GetSecondaryAsync(id, string.Empty, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -177,10 +181,10 @@ namespace UnitTests
             var controller = new ResourceController(new JsonApiOptions(), NullLoggerFactory.Instance, update: serviceMock.Object);
 
             // Act
-            await controller.PatchAsync(id, resource);
+            await controller.PatchAsync(id, resource, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.UpdateAsync(id, It.IsAny<Resource>()), Times.Once);
+            serviceMock.Verify(m => m.UpdateAsync(id, It.IsAny<Resource>(), CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -188,10 +192,11 @@ namespace UnitTests
         {
             // Arrange
             const int id = 0;
+            var resource = new Resource();
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.PatchAsync(id, It.IsAny<Resource>()));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.PatchAsync(id, resource, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -206,14 +211,14 @@ namespace UnitTests
             var serviceMock = new Mock<ICreateService<Resource>>();
 
             var controller = new ResourceController(new JsonApiOptions(), NullLoggerFactory.Instance, create: serviceMock.Object);
-            serviceMock.Setup(m => m.CreateAsync(It.IsAny<Resource>())).ReturnsAsync(resource);
+            serviceMock.Setup(m => m.CreateAsync(It.IsAny<Resource>(), It.IsAny<CancellationToken>())).ReturnsAsync(resource);
             controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
 
             // Act
-            await controller.PostAsync(resource);
+            await controller.PostAsync(resource, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.CreateAsync(It.IsAny<Resource>()), Times.Once);
+            serviceMock.Verify(m => m.CreateAsync(It.IsAny<Resource>(), CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -221,14 +226,14 @@ namespace UnitTests
         {
             // Arrange
             const int id = 0;
-            var serviceMock = new Mock<IUpdateRelationshipService<Resource>>();
-            var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, updateRelationships: serviceMock.Object);
+            var serviceMock = new Mock<ISetRelationshipService<Resource>>();
+            var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, setRelationship: serviceMock.Object);
 
             // Act
-            await controller.PatchRelationshipAsync(id, string.Empty, null);
+            await controller.PatchRelationshipAsync(id, string.Empty, null, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.UpdateRelationshipAsync(id, string.Empty, null), Times.Once);
+            serviceMock.Verify(m => m.SetRelationshipAsync(id, string.Empty, null, CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -239,7 +244,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.PatchRelationshipAsync(id, string.Empty, null));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.PatchRelationshipAsync(id, string.Empty, null, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);
@@ -255,10 +260,10 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance, delete: serviceMock.Object);
 
             // Act
-            await controller.DeleteAsync(id);
+            await controller.DeleteAsync(id, CancellationToken.None);
 
             // Assert
-            serviceMock.Verify(m => m.DeleteAsync(id), Times.Once);
+            serviceMock.Verify(m => m.DeleteAsync(id, CancellationToken.None), Times.Once);
         }
 
         [Fact]
@@ -269,7 +274,7 @@ namespace UnitTests
             var controller = new ResourceController(new Mock<IJsonApiOptions>().Object, NullLoggerFactory.Instance);
 
             // Act
-            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.DeleteAsync(id));
+            var exception = await Assert.ThrowsAsync<RequestMethodNotAllowedException>(() => controller.DeleteAsync(id, CancellationToken.None));
 
             // Assert
             Assert.Equal(HttpStatusCode.MethodNotAllowed, exception.Error.StatusCode);

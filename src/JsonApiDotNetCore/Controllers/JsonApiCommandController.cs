@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources;
@@ -26,23 +28,47 @@ namespace JsonApiDotNetCore.Controllers
 
         /// <inheritdoc />
         [HttpPost]
-        public override async Task<IActionResult> PostAsync([FromBody] TResource resource)
-            => await base.PostAsync(resource);
+        public override async Task<IActionResult> PostAsync([FromBody] TResource resource, CancellationToken cancellationToken)
+        {
+            return await base.PostAsync(resource, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        [HttpPost("{id}/relationships/{relationshipName}")]
+        public override async Task<IActionResult> PostRelationshipAsync(
+            TId id, string relationshipName, [FromBody] ISet<IIdentifiable> secondaryResourceIds, CancellationToken cancellationToken)
+        {
+            return await base.PostRelationshipAsync(id, relationshipName, secondaryResourceIds, cancellationToken);
+        }
 
         /// <inheritdoc />
         [HttpPatch("{id}")]
-        public override async Task<IActionResult> PatchAsync(TId id, [FromBody] TResource resource)
-            => await base.PatchAsync(id, resource);
+        public override async Task<IActionResult> PatchAsync(TId id, [FromBody] TResource resource, CancellationToken cancellationToken)
+        {
+            return await base.PatchAsync(id, resource, cancellationToken);
+        }
 
         /// <inheritdoc />
         [HttpPatch("{id}/relationships/{relationshipName}")]
         public override async Task<IActionResult> PatchRelationshipAsync(
-            TId id, string relationshipName, [FromBody] object relationships)
-            => await base.PatchRelationshipAsync(id, relationshipName, relationships);
+            TId id, string relationshipName, [FromBody] object secondaryResourceIds, CancellationToken cancellationToken)
+        {
+            return await base.PatchRelationshipAsync(id, relationshipName, secondaryResourceIds, cancellationToken);
+        }
 
         /// <inheritdoc />
         [HttpDelete("{id}")]
-        public override async Task<IActionResult> DeleteAsync(TId id) => await base.DeleteAsync(id);
+        public override async Task<IActionResult> DeleteAsync(TId id, CancellationToken cancellationToken)
+        {
+            return await base.DeleteAsync(id, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        [HttpDelete("{id}/relationships/{relationshipName}")]
+        public override async Task<IActionResult> DeleteRelationshipAsync(TId id, string relationshipName, [FromBody] ISet<IIdentifiable> secondaryResourceIds, CancellationToken cancellationToken)
+        {
+            return await base.DeleteRelationshipAsync(id, relationshipName, secondaryResourceIds, cancellationToken);
+        }
     }
 
     /// <inheritdoc />
