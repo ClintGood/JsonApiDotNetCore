@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using JsonApiDotNetCore.Configuration;
+using JsonApiDotNetCore.Errors;
+using JsonApiDotNetCore.Middleware;
 using JsonApiDotNetCore.Queries;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Resources;
@@ -15,18 +17,20 @@ namespace JsonApiDotNetCore.Repositories
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly IResourceContextProvider _resourceContextProvider;
+        private readonly IJsonApiRequest _request;
 
-        public ResourceRepositoryAccessor(IServiceProvider serviceProvider, IResourceContextProvider resourceContextProvider)
+        public ResourceRepositoryAccessor(IServiceProvider serviceProvider, IResourceContextProvider resourceContextProvider, IJsonApiRequest request)
         {
             _serviceProvider = serviceProvider ?? throw new ArgumentException(nameof(serviceProvider));
             _resourceContextProvider = resourceContextProvider ?? throw new ArgumentException(nameof(serviceProvider));
+            _request = request ?? throw new ArgumentNullException(nameof(request));
         }
 
         /// <inheritdoc />
         public async Task<IReadOnlyCollection<TResource>> GetAsync<TResource>(QueryLayer layer, CancellationToken cancellationToken)
             where TResource : class, IIdentifiable
         {
-            dynamic repository = GetReadRepository(typeof(TResource));
+            dynamic repository = ResolveReadRepository(typeof(TResource));
             return (IReadOnlyCollection<TResource>) await repository.GetAsync(layer, cancellationToken);
         }
 
@@ -35,7 +39,7 @@ namespace JsonApiDotNetCore.Repositories
         {
             if (resourceType == null) throw new ArgumentNullException(nameof(resourceType));
 
-            dynamic repository = GetReadRepository(resourceType);
+            dynamic repository = ResolveReadRepository(resourceType);
             return (IReadOnlyCollection<IIdentifiable>) await repository.GetAsync(layer, cancellationToken);
         }
 
@@ -43,7 +47,7 @@ namespace JsonApiDotNetCore.Repositories
         public async Task<int> CountAsync<TResource>(FilterExpression topFilter, CancellationToken cancellationToken)
             where TResource : class, IIdentifiable
         {
-            dynamic repository = GetReadRepository(typeof(TResource));
+            dynamic repository = ResolveReadRepository(typeof(TResource));
             return (int) await repository.CountAsync(topFilter, cancellationToken);
         }
 
@@ -111,7 +115,7 @@ namespace JsonApiDotNetCore.Repositories
             await repository.RemoveFromToManyRelationshipAsync(primaryResource, secondaryResourceIds, cancellationToken);
         }
 
-        protected object GetReadRepository(Type resourceType)
+        protected virtual object ResolveReadRepository(Type resourceType)
         {
             var resourceContext = _resourceContextProvider.GetResourceContext(resourceType);
 
@@ -130,7 +134,28 @@ namespace JsonApiDotNetCore.Repositories
             return _serviceProvider.GetRequiredService(resourceDefinitionType);
         }
 
-        protected object GetWriteRepository(Type resourceType)
+        private object GetWriteRepository(Type resourceType)
+        {
+            var writeRepository = ResolveWriteRepository(resourceType);
+
+            if (_request.TransactionId != null)
+            {
+                if (!(writeRepository is IRepositorySupportsTransaction repository))
+                {
+                    var resourceContext = _resourceContextProvider.GetResourceContext(resourceType);
+                    throw new MissingTransactionSupportException(resourceContext.PublicName);
+                }
+
+                if (repository.TransactionId != _request.TransactionId)
+                {
+                    throw new NonSharedTransactionException();
+                }
+            }
+
+            return writeRepository;
+        }
+
+        protected virtual object ResolveWriteRepository(Type resourceType)
         {
             var resourceContext = _resourceContextProvider.GetResourceContext(resourceType);
 

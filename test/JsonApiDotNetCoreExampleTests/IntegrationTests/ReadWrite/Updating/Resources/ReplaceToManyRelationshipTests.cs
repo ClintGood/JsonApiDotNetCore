@@ -4,18 +4,20 @@ using System.Net;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
 using Microsoft.EntityFrameworkCore;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Resources
 {
     public sealed class ReplaceToManyRelationshipTests
-        : IClassFixture<IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext>>
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> _testContext;
-        private readonly WriteFakers _fakers = new WriteFakers();
+        private readonly ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> _testContext;
+        private readonly ReadWriteFakers _fakers = new ReadWriteFakers();
 
-        public ReplaceToManyRelationshipTests(IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> testContext)
+        public ReplaceToManyRelationshipTests(ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> testContext)
         {
             _testContext = testContext;
         }
@@ -78,7 +80,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
             {
                 new WorkItemTag
                 {
-                    Tag = _fakers.WorkTags.Generate()
+                    Tag = _fakers.WorkTag.Generate()
                 }
             };
 
@@ -199,15 +201,15 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
             {
                 new WorkItemTag
                 {
-                    Tag = _fakers.WorkTags.Generate()
+                    Tag = _fakers.WorkTag.Generate()
                 },
                 new WorkItemTag
                 {
-                    Tag = _fakers.WorkTags.Generate()
+                    Tag = _fakers.WorkTag.Generate()
                 }
             };
 
-            var existingTags = _fakers.WorkTags.Generate(2);
+            var existingTags = _fakers.WorkTag.Generate(2);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -328,6 +330,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
             responseDocument.Included[0].Id.Should().Be(existingUserAccount.StringId);
             responseDocument.Included[0].Attributes["firstName"].Should().Be(existingUserAccount.FirstName);
             responseDocument.Included[0].Attributes["lastName"].Should().Be(existingUserAccount.LastName);
+            responseDocument.Included[0].Relationships.Should().NotBeEmpty();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -345,7 +348,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
         {
             // Arrange
             var existingWorkItem = _fakers.WorkItem.Generate();
-            var existingTag = _fakers.WorkTags.Generate();
+            var existingTag = _fakers.WorkTag.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -376,7 +379,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
                 }
             };
 
-            var route = $"/workItems/{existingWorkItem.StringId}?fields=priority&include=tags&fields[tags]=text";
+            var route = $"/workItems/{existingWorkItem.StringId}?fields[workItems]=priority,tags&include=tags&fields[workTags]=text";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<Document>(route, requestBody);
@@ -389,13 +392,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Updating.Reso
             responseDocument.SingleData.Id.Should().Be(existingWorkItem.StringId);
             responseDocument.SingleData.Attributes.Should().HaveCount(1);
             responseDocument.SingleData.Attributes["priority"].Should().Be(existingWorkItem.Priority.ToString("G"));
-            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
+            responseDocument.SingleData.Relationships.Should().HaveCount(1);
+            responseDocument.SingleData.Relationships["tags"].ManyData.Should().HaveCount(1);
+            responseDocument.SingleData.Relationships["tags"].ManyData[0].Id.Should().Be(existingTag.StringId);
             
             responseDocument.Included.Should().HaveCount(1);
             responseDocument.Included[0].Type.Should().Be("workTags");
             responseDocument.Included[0].Id.Should().Be(existingTag.StringId);
             responseDocument.Included[0].Attributes.Should().HaveCount(1);
             responseDocument.Included[0].Attributes["text"].Should().Be(existingTag.Text);
+            responseDocument.Included[0].Relationships.Should().BeNull();
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 

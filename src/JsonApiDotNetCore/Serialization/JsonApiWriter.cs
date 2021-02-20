@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 
 namespace JsonApiDotNetCore.Serialization
 {
@@ -36,31 +35,23 @@ namespace JsonApiDotNetCore.Serialization
 
         public async Task WriteAsync(OutputFormatterWriteContext context)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
+            if (context == null) throw new ArgumentNullException(nameof(context));
 
             var response = context.HttpContext.Response;
+            response.ContentType = _serializer.ContentType;
+
             await using var writer = context.WriterFactory(response.Body, Encoding.UTF8);
             string responseContent;
-
-            if (_serializer == null)
+            try
             {
-                responseContent = JsonConvert.SerializeObject(context.Object);
+                responseContent = SerializeResponse(context.Object, (HttpStatusCode) response.StatusCode);
             }
-            else
+            catch (Exception exception)
             {
-                response.ContentType = HeaderConstants.MediaType;
-                try
-                {
-                    responseContent = SerializeResponse(context.Object, (HttpStatusCode)response.StatusCode);
-                }
-                catch (Exception exception)
-                {
-                    var errorDocument = _exceptionHandler.HandleException(exception);
-                    responseContent = _serializer.Serialize(errorDocument);
+                var errorDocument = _exceptionHandler.HandleException(exception);
+                responseContent = _serializer.Serialize(errorDocument);
 
-                    response.StatusCode = (int)errorDocument.GetErrorStatusCode();
-                }
+                response.StatusCode = (int) errorDocument.GetErrorStatusCode();
             }
 
             var url = context.HttpContext.Request.GetEncodedUrl();

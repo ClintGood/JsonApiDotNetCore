@@ -5,18 +5,20 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 {
     public sealed class CompositeKeyTests 
-        : IClassFixture<IntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext>>
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext> _testContext;
+        private readonly ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext> _testContext;
 
-        public CompositeKeyTests(IntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext> testContext)
+        public CompositeKeyTests(ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext> testContext)
         {
             _testContext = testContext;
 
@@ -133,7 +135,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars?fields=id";
+            var route = "/cars?fields[cars]=id";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
@@ -503,7 +505,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
             // Arrange
             var existingDealership = new Dealership
             {
-                Address = "Dam 1, 1012JS Amsterdam, the Netherlands",
+                Address = "Dam 1, 1012JS Amsterdam, the Netherlands"
             };
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>

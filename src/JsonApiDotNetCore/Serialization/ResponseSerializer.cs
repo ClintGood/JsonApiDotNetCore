@@ -12,10 +12,10 @@ using Newtonsoft.Json;
 namespace JsonApiDotNetCore.Serialization
 {
     /// <summary>
-    /// Server serializer implementation of <see cref="BaseSerializer"/>
+    /// Server serializer implementation of <see cref="BaseSerializer"/> for resources of a specific type.
     /// </summary>
     /// <remarks>
-    /// Because in JsonApiDotNetCore every json:api request is associated with exactly one
+    /// Because in JsonApiDotNetCore every JSON:API request is associated with exactly one
     /// resource (the primary resource, see <see cref="IJsonApiRequest.PrimaryResource"/>),
     /// the serializer can leverage this information using generics.
     /// See <see cref="ResponseSerializerFactory"/> for how this is instantiated.
@@ -31,6 +31,9 @@ namespace JsonApiDotNetCore.Serialization
         private readonly Type _primaryResourceType;
         private readonly ILinkBuilder _linkBuilder;
         private readonly IIncludedResourceObjectBuilder _includedBuilder;
+
+        /// <inheritdoc />
+        public string ContentType { get; } = HeaderConstants.MediaType;
 
         public ResponseSerializer(IMetaBuilder metaBuilder,
             ILinkBuilder linkBuilder,

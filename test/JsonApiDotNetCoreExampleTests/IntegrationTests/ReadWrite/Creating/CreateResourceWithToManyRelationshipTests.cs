@@ -2,26 +2,23 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using FluentAssertions;
-using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
 {
     public sealed class CreateResourceWithToManyRelationshipTests
-        : IClassFixture<IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext>>
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> _testContext;
-        private readonly WriteFakers _fakers = new WriteFakers();
+        private readonly ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> _testContext;
+        private readonly ReadWriteFakers _fakers = new ReadWriteFakers();
 
-        public CreateResourceWithToManyRelationshipTests(IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> testContext)
+        public CreateResourceWithToManyRelationshipTests(ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> testContext)
         {
             _testContext = testContext;
-
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
-            options.AllowClientGeneratedIds = true;
         }
 
         [Fact]
@@ -72,6 +69,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
+            responseDocument.SingleData.Attributes.Should().NotBeEmpty();
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
             responseDocument.Included.Should().BeNull();
 
@@ -137,6 +135,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
+            responseDocument.SingleData.Attributes.Should().NotBeEmpty();
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
             
             responseDocument.Included.Should().HaveCount(2);
@@ -145,6 +144,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.Included.Should().ContainSingle(resource => resource.Id == existingUserAccounts[1].StringId);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes["firstName"] != null);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes["lastName"] != null);
+            responseDocument.Included.Should().OnlyContain(resource => resource.Relationships.Count > 0);
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 
@@ -199,7 +199,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
                 }
             };
 
-            var route = "/workItems?include=subscribers&fields[subscribers]=firstName";
+            var route = "/workItems?include=subscribers&fields[userAccounts]=firstName";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
@@ -208,6 +208,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
+            responseDocument.SingleData.Attributes.Should().NotBeEmpty();
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
             
             responseDocument.Included.Should().HaveCount(2);
@@ -216,6 +217,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.Included.Should().ContainSingle(resource => resource.Id == existingUserAccounts[1].StringId);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes.Count == 1);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes["firstName"] != null);
+            responseDocument.Included.Should().OnlyContain(resource => resource.Relationships == null);
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 
@@ -235,7 +237,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
         public async Task Can_create_HasManyThrough_relationship_with_include_and_fieldsets()
         {
             // Arrange
-            var existingTags = _fakers.WorkTags.Generate(3);
+            var existingTags = _fakers.WorkTag.Generate(3);
             var workItemToCreate = _fakers.WorkItem.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -281,7 +283,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
                 }
             };
 
-            var route = "/workItems?fields=priority&include=tags&fields[tags]=text";
+            var route = "/workItems?fields[workItems]=priority,tags&include=tags&fields[workTags]=text";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
@@ -292,8 +294,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Should().NotBeNull();
             responseDocument.SingleData.Attributes.Should().HaveCount(1);
             responseDocument.SingleData.Attributes["priority"].Should().Be(workItemToCreate.Priority.ToString("G"));
-
-            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
+            responseDocument.SingleData.Relationships.Should().HaveCount(1);
+            responseDocument.SingleData.Relationships["tags"].ManyData.Should().HaveCount(3);
+            responseDocument.SingleData.Relationships["tags"].ManyData[0].Id.Should().Be(existingTags[0].StringId);
+            responseDocument.SingleData.Relationships["tags"].ManyData[1].Id.Should().Be(existingTags[1].StringId);
+            responseDocument.SingleData.Relationships["tags"].ManyData[2].Id.Should().Be(existingTags[2].StringId);
             
             responseDocument.Included.Should().HaveCount(3);
             responseDocument.Included.Should().OnlyContain(resource => resource.Type == "workTags");
@@ -302,6 +307,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.Included.Should().ContainSingle(resource => resource.Id == existingTags[2].StringId);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes.Count == 1);
             responseDocument.Included.Should().OnlyContain(resource => resource.Attributes["text"] != null);
+            responseDocument.Included.Should().OnlyContain(resource => resource.Relationships == null);
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 
@@ -480,11 +486,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
 
             responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
             responseDocument.Errors[0].Title.Should().Be("A related resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().StartWith("Related resource of type 'workItems' with ID '12345678' in relationship 'assignedItems' does not exist.");
+            responseDocument.Errors[0].Detail.Should().Be("Related resource of type 'workItems' with ID '12345678' in relationship 'assignedItems' does not exist.");
 
             responseDocument.Errors[1].StatusCode.Should().Be(HttpStatusCode.NotFound);
             responseDocument.Errors[1].Title.Should().Be("A related resource does not exist.");
-            responseDocument.Errors[1].Detail.Should().StartWith("Related resource of type 'workItems' with ID '87654321' in relationship 'assignedItems' does not exist.");
+            responseDocument.Errors[1].Detail.Should().Be("Related resource of type 'workItems' with ID '87654321' in relationship 'assignedItems' does not exist.");
         }
 
         [Fact]
@@ -575,6 +581,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
+            responseDocument.SingleData.Attributes.Should().NotBeEmpty();
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
             
             responseDocument.Included.Should().HaveCount(1);
@@ -658,6 +665,49 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
             responseDocument.Errors[0].Title.Should().Be("Failed to deserialize request body: Expected data[] element for to-many relationship.");
             responseDocument.Errors[0].Detail.Should().StartWith("Expected data[] element for 'tags' relationship. - Request body: <<");
+        }
+
+        [Fact]
+        public async Task Cannot_create_resource_with_local_ID()
+        {
+            // Arrange
+            const string workItemLocalId = "wo-1";
+
+            var requestBody = new
+            {
+                data = new
+                {
+                    type = "workItems",
+                    lid = workItemLocalId,
+                    relationships = new
+                    {
+                        children = new
+                        {
+                            data = new[]
+                            {
+                                new
+                                {
+                                    type = "workItems",
+                                    lid = workItemLocalId
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var route = "/workItems";
+
+            // Act
+            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<ErrorDocument>(route, requestBody);
+
+            // Assert
+            httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
+
+            responseDocument.Errors.Should().HaveCount(1);
+            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            responseDocument.Errors[0].Title.Should().Be("Failed to deserialize request body: Local IDs cannot be used at this endpoint.");
+            responseDocument.Errors[0].Detail.Should().StartWith("Local IDs cannot be used at this endpoint. - Request body: <<");
         }
     }
 }

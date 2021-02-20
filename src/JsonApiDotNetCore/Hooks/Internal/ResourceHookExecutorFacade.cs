@@ -119,16 +119,16 @@ namespace JsonApiDotNetCore.Hooks.Internal
 
         public object OnReturnRelationship(object resourceOrResources)
         {
-            if (resourceOrResources is IEnumerable enumerable)
+            if (resourceOrResources is IEnumerable)
             {
-                var resources = enumerable.Cast<IIdentifiable>();
-                return _resourceHookExecutor.OnReturn(resources, ResourcePipeline.GetRelationship).ToArray();
+                dynamic resources = resourceOrResources;
+                return Enumerable.ToArray(_resourceHookExecutor.OnReturn(resources, ResourcePipeline.GetRelationship));
             }
 
-            if (resourceOrResources is IIdentifiable identifiable)
+            if (resourceOrResources is IIdentifiable)
             {
-                var resources = ToList(identifiable);
-                return _resourceHookExecutor.OnReturn(resources, ResourcePipeline.GetRelationship).Single();
+                var resources = ToList((dynamic)resourceOrResources);
+                return Enumerable.SingleOrDefault(_resourceHookExecutor.OnReturn(resources, ResourcePipeline.GetRelationship));
             }
 
             return resourceOrResources;

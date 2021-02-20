@@ -22,7 +22,7 @@ namespace JsonApiDotNetCore.Repositories
     /// <summary>
     /// Implements the foundational Repository layer in the JsonApiDotNetCore architecture that uses Entity Framework Core.
     /// </summary>
-    public class EntityFrameworkCoreRepository<TResource, TId> : IResourceRepository<TResource, TId>
+    public class EntityFrameworkCoreRepository<TResource, TId> : IResourceRepository<TResource, TId>, IRepositorySupportsTransaction
         where TResource : class, IIdentifiable<TId>
     {
         private readonly ITargetedFields _targetedFields;
@@ -31,6 +31,9 @@ namespace JsonApiDotNetCore.Repositories
         private readonly IResourceFactory _resourceFactory;
         private readonly IEnumerable<IQueryConstraintProvider> _constraintProviders;
         private readonly TraceLogWriter<EntityFrameworkCoreRepository<TResource, TId>> _traceWriter;
+
+        /// <inheritdoc />
+        public virtual Guid? TransactionId => _dbContext.Database.CurrentTransaction?.TransactionId;
 
         public EntityFrameworkCoreRepository(
             ITargetedFields targetedFields,
@@ -194,7 +197,7 @@ namespace JsonApiDotNetCore.Repositories
 
             var relationshipIsBeingCleared = relationship is HasOneAttribute
                 ? rightValue == null
-                : IsRequiredToManyRelationshipBeingCleared(relationship, leftResource, rightValue);
+                : IsToManyRelationshipBeingCleared(relationship, leftResource, rightValue);
             
             if (relationshipIsRequired && relationshipIsBeingCleared)
             {
@@ -203,7 +206,7 @@ namespace JsonApiDotNetCore.Repositories
             }
         }
 
-        private static bool IsRequiredToManyRelationshipBeingCleared(RelationshipAttribute relationship, TResource leftResource, object valueToAssign)
+        private static bool IsToManyRelationshipBeingCleared(RelationshipAttribute relationship, TResource leftResource, object valueToAssign)
         {
             ICollection<IIdentifiable> newRightResourceIds = TypeHelper.ExtractResources(valueToAssign);
 
@@ -399,13 +402,20 @@ namespace JsonApiDotNetCore.Repositories
             }
             catch (DbUpdateException exception)
             {
+                if (_dbContext.Database.CurrentTransaction != null)
+                {
+                    // The ResourceService calling us needs to run additional SQL queries after an aborted transaction,
+                    // to determine error cause. This fails when a failed transaction is still in progress.
+                    await _dbContext.Database.CurrentTransaction.RollbackAsync(cancellationToken);
+                }
+
                 throw new DataStoreUpdateException(exception);
             }
         }
     }
 
     /// <summary>
-    /// Implements the foundational repository implementation that uses Entity Framework Core.
+    /// Implements the foundational Repository layer in the JsonApiDotNetCore architecture that uses Entity Framework Core.
     /// </summary>
     public class EntityFrameworkCoreRepository<TResource> : EntityFrameworkCoreRepository<TResource, int>, IResourceRepository<TResource>
         where TResource : class, IIdentifiable<int>

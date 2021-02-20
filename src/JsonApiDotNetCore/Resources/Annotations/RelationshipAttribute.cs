@@ -1,20 +1,17 @@
 using System;
 using System.Reflection;
 using JsonApiDotNetCore.Configuration;
-using JsonApiDotNetCore.Errors;
 
 namespace JsonApiDotNetCore.Resources.Annotations
 {
     /// <summary>
-    /// Used to expose a property on a resource class as a json:api relationship (https://jsonapi.org/format/#document-resource-object-relationships).
+    /// Used to expose a property on a resource class as a JSON:API relationship (https://jsonapi.org/format/#document-resource-object-relationships).
     /// </summary>
     public abstract class RelationshipAttribute : ResourceFieldAttribute
     {
-        private LinkTypes _links;
-
         /// <summary>
         /// The property name of the EF Core inverse navigation, which may or may not exist.
-        /// Even if it exists, it may not be exposed as a json:api relationship.
+        /// Even if it exists, it may not be exposed as a JSON:API relationship.
         /// </summary>
         /// <example>
         /// <code><![CDATA[
@@ -58,27 +55,12 @@ namespace JsonApiDotNetCore.Resources.Annotations
         public Type LeftType { get; internal set; }
 
         /// <summary>
-        /// Configures which links to show in the <see cref="Links"/> object for this relationship.
-        /// When not explicitly assigned, the default value depends on the relationship type (see remarks).
+        /// Configures which links to show in the <see cref="Serialization.Objects.RelationshipLinks"/>
+        /// object for this relationship.
+        /// Defaults to <see cref="LinkTypes.NotConfigured"/>, which falls back to <see cref="ResourceLinksAttribute.RelationshipLinks"/>
+        /// and then falls back to <see cref="IJsonApiOptions.RelationshipLinks"/>.
         /// </summary>
-        /// <remarks>
-        /// This defaults to <see cref="LinkTypes.All"/> for <see cref="HasManyAttribute"/> and <see cref="HasManyThroughAttribute"/> relationships.
-        /// This defaults to <see cref="LinkTypes.NotConfigured"/> for <see cref="HasOneAttribute"/> relationships, which means that
-        /// the configuration in <see cref="IJsonApiOptions"/> or <see cref="ResourceContext"/> is used.
-        /// </remarks>
-        public LinkTypes Links
-        {
-            get => _links;
-            set
-            {
-                if (value == LinkTypes.Paging)
-                {
-                    throw new InvalidConfigurationException($"{LinkTypes.Paging:g} not allowed for argument {nameof(value)}");
-                }
-
-                _links = value;
-            }
-        }
+        public LinkTypes Links { get; set; } = LinkTypes.NotConfigured;
 
         /// <summary>
         /// Whether or not this relationship can be included using the <c>?include=publicName</c> query string parameter.

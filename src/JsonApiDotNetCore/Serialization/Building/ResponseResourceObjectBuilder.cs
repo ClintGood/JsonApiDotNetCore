@@ -4,6 +4,7 @@ using System.Linq;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries;
 using JsonApiDotNetCore.Queries.Expressions;
+using JsonApiDotNetCore.Queries.Internal;
 using JsonApiDotNetCore.QueryStrings;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
@@ -17,6 +18,7 @@ namespace JsonApiDotNetCore.Serialization.Building
         private readonly IEnumerable<IQueryConstraintProvider> _constraintProviders;
         private readonly IResourceDefinitionAccessor _resourceDefinitionAccessor;
         private readonly ILinkBuilder _linkBuilder;
+        private readonly SparseFieldSetCache _sparseFieldSetCache;
         private RelationshipAttribute _requestRelationship;
 
         public ResponseResourceObjectBuilder(ILinkBuilder linkBuilder,
@@ -31,6 +33,7 @@ namespace JsonApiDotNetCore.Serialization.Building
             _includedBuilder = includedBuilder ?? throw new ArgumentNullException(nameof(includedBuilder));
             _constraintProviders = constraintProviders ?? throw new ArgumentNullException(nameof(constraintProviders));
             _resourceDefinitionAccessor = resourceDefinitionAccessor ?? throw new ArgumentNullException(nameof(resourceDefinitionAccessor));
+            _sparseFieldSetCache = new SparseFieldSetCache(constraintProviders, resourceDefinitionAccessor);
         }
 
         public RelationshipEntry Build(IIdentifiable resource, RelationshipAttribute requestRelationship)
@@ -57,7 +60,7 @@ namespace JsonApiDotNetCore.Serialization.Building
         /// The server serializer only populates the "data" member when the relationship is included,
         /// and adds links unless these are turned off. This means that if a relationship is not included
         /// and links are turned off, the entry would be completely empty, ie { }, which is not conform
-        /// json:api spec. In that case we return null which will omit the entry from the output.
+        /// JSON:API spec. In that case we return null which will omit the entry from the output.
         /// </summary>
         protected override RelationshipEntry GetRelationshipData(RelationshipAttribute relationship, IIdentifiable resource)
         {
@@ -75,14 +78,30 @@ namespace JsonApiDotNetCore.Serialization.Building
                         _includedBuilder.IncludeRelationshipChain(chain, resource);
             }
 
+            if (!IsRelationshipInSparseFieldSet(relationship))
+            {
+                return null;
+            }
+
             var links = _linkBuilder.GetRelationshipLinks(relationship, resource);
             if (links != null)
-                // if links relationshipLinks should be built for this entry, populate the "links" field.
-                (relationshipEntry ??= new RelationshipEntry()).Links = links;
+            {
+                // if relationshipLinks should be built for this entry, populate the "links" field.
+                relationshipEntry ??= new RelationshipEntry();
+                relationshipEntry.Links = links;
+            }
 
             // if neither "links" nor "data" was populated, return null, which will omit this entry from the output.
             // (see the NullValueHandling settings on <see cref="ResourceObject"/>)
             return relationshipEntry;
+        }
+
+        private bool IsRelationshipInSparseFieldSet(RelationshipAttribute relationship)
+        {
+            var resourceContext = ResourceContextProvider.GetResourceContext(relationship.LeftType);
+
+            var fieldSet = _sparseFieldSetCache.GetSparseFieldSetForSerializer(resourceContext);
+            return fieldSet.Contains(relationship);
         }
 
         /// <summary>

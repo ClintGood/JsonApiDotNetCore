@@ -3,18 +3,21 @@ using System.Net;
 using System.Threading.Tasks;
 using FluentAssertions;
 using FluentAssertions.Extensions;
+using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
 using Microsoft.Extensions.DependencyInjection;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 {
-    public sealed class ResourceDefinitionQueryCallbackTests : IClassFixture<IntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext>>
+    public sealed class ResourceDefinitionQueryCallbackTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext> _testContext;
+        private readonly ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext> _testContext;
 
-        public ResourceDefinitionQueryCallbackTests(IntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext> testContext)
+        public ResourceDefinitionQueryCallbackTests(ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext> testContext)
         {
             _testContext = testContext;
 
@@ -23,6 +26,9 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
                 services.AddScoped<IResourceDefinition<CallableResource>, CallableResourceDefinition>();
                 services.AddSingleton<IUserRolesService, FakeUserRolesService>();
             });
+
+            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            options.IncludeTotalResourceCount = true;
         }
 
         [Fact]
@@ -32,9 +38,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             var userRolesService = (FakeUserRolesService) _testContext.Factory.Services.GetRequiredService<IUserRolesService>();
             userRolesService.AllowIncludeOwner = false;
 
+            var resource = new CallableResource
+            {
+                Label = "A",
+                IsDeleted = false
+            };
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
+                dbContext.CallableResources.Add(resource);
 
                 await dbContext.SaveChangesAsync();
             });
@@ -82,7 +95,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -99,6 +112,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             responseDocument.ManyData.Should().HaveCount(2);
             responseDocument.ManyData[0].Id.Should().Be(resources[1].StringId);
             responseDocument.ManyData[1].Id.Should().Be(resources[3].StringId);
+
+            responseDocument.Meta["totalResources"].Should().Be(2);
         }
 
         [Fact]
@@ -131,7 +146,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -147,6 +162,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             responseDocument.ManyData.Should().HaveCount(1);
             responseDocument.ManyData[0].Id.Should().Be(resources[3].StringId);
+
+            responseDocument.Meta["totalResources"].Should().Be(1);
         }
 
         [Fact]
@@ -177,7 +194,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -225,7 +242,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -258,7 +275,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -323,7 +340,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}?fields=label,status";
+            var route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,status";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
@@ -336,6 +353,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             responseDocument.SingleData.Attributes.Should().HaveCount(2);
             responseDocument.SingleData.Attributes["label"].Should().Be(resource.Label);
             responseDocument.SingleData.Attributes["status"].Should().Be("5% completed.");
+            responseDocument.SingleData.Relationships.Should().BeNull();
         }
         
         [Fact]
@@ -386,7 +404,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}?fields=label,riskLevel";
+            var route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,riskLevel";
 
             // Act
             var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
@@ -398,6 +416,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             responseDocument.SingleData.Id.Should().Be(resource.StringId);
             responseDocument.SingleData.Attributes.Should().HaveCount(1);
             responseDocument.SingleData.Attributes["label"].Should().Be(resource.Label);
+            responseDocument.SingleData.Relationships.Should().BeNull();
         }
 
         [Fact]
@@ -430,7 +449,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();
@@ -479,7 +498,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.RemoveRange(dbContext.CallableResources);
+                await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
 
                 await dbContext.SaveChangesAsync();

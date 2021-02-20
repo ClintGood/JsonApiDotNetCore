@@ -14,7 +14,7 @@ namespace JsonApiDotNetCore.Queries
         /// <summary>
         /// Builds a top-level filter from constraints, used to determine total resource count.
         /// </summary>
-        FilterExpression GetTopFilterFromConstraints();
+        FilterExpression GetTopFilterFromConstraints(ResourceContext resourceContext);
 
         /// <summary>
         /// Collects constraints and builds a <see cref="QueryLayer"/> out of them, used to retrieve the actual resources.
@@ -53,8 +53,8 @@ namespace JsonApiDotNetCore.Queries
         QueryLayer ComposeForGetRelationshipRightIds(RelationshipAttribute relationship, ICollection<IIdentifiable> rightResourceIds);
 
         /// <summary>
-        /// Builds a query for a many-to-many relationship with a filter to match on its left and right resource IDs.
+        /// Builds a query for a to-many relationship with a filter to match on its left and right resource IDs.
         /// </summary>
-        QueryLayer ComposeForHasManyThrough<TId>(HasManyThroughAttribute hasManyThroughRelationship, TId leftId, ICollection<IIdentifiable> rightResourceIds);
+        QueryLayer ComposeForHasMany<TId>(HasManyAttribute hasManyRelationship, TId leftId, ICollection<IIdentifiable> rightResourceIds);
     }
 }

@@ -6,19 +6,21 @@ using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
 {
     public sealed class CreateResourceTests
-        : IClassFixture<IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext>>
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> _testContext;
-        private readonly WriteFakers _fakers = new WriteFakers();
+        private readonly ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> _testContext;
+        private readonly ReadWriteFakers _fakers = new ReadWriteFakers();
 
-        public CreateResourceTests(IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> testContext)
+        public CreateResourceTests(ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> testContext)
         {
             _testContext = testContext;
 
@@ -94,7 +96,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Type.Should().Be("workItems");
             responseDocument.SingleData.Attributes["description"].Should().Be(newWorkItem.Description);
             responseDocument.SingleData.Attributes["dueAt"].Should().Be(newWorkItem.DueAt);
-
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
@@ -143,7 +144,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Type.Should().Be("userAccounts");
             responseDocument.SingleData.Attributes["firstName"].Should().Be(newUserAccount.FirstName);
             responseDocument.SingleData.Attributes["lastName"].Should().Be(newUserAccount.LastName);
-
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newUserAccountId = long.Parse(responseDocument.SingleData.Id);
@@ -190,7 +190,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Should().NotBeNull();
             responseDocument.SingleData.Type.Should().Be("workItemGroups");
             responseDocument.SingleData.Attributes["name"].Should().Be(newGroup.Name);
-
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newGroupId = Guid.Parse(responseDocument.SingleData.Id);
@@ -237,7 +236,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Type.Should().Be("workItems");
             responseDocument.SingleData.Attributes["description"].Should().BeNull();
             responseDocument.SingleData.Attributes["dueAt"].Should().BeNull();
-
             responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
@@ -282,6 +280,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
             responseDocument.SingleData.Should().NotBeNull();
             responseDocument.SingleData.Type.Should().Be("workItems");
             responseDocument.SingleData.Attributes["description"].Should().Be(newWorkItem.Description);
+            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 
@@ -327,6 +326,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
 
             responseDocument.SingleData.Should().NotBeNull();
             responseDocument.SingleData.Type.Should().Be("workItems");
+            responseDocument.SingleData.Attributes.Should().NotBeEmpty();
+            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
 
             var newWorkItemId = int.Parse(responseDocument.SingleData.Id);
 
@@ -581,7 +582,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
         }
 
         [Fact]
-        public async Task Cannot_update_resource_with_incompatible_attribute_value()
+        public async Task Cannot_create_resource_with_incompatible_attribute_value()
         {
             // Arrange
             var requestBody = new
@@ -615,7 +616,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Creating
         {
             // Arrange
             var existingUserAccounts = _fakers.UserAccount.Generate(2);
-            var existingTag = _fakers.WorkTags.Generate();
+            var existingTag = _fakers.WorkTag.Generate();
 
             var newDescription = _fakers.WorkItem.Generate().Description;
 

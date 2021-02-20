@@ -13,12 +13,12 @@ For various reasons (see examples below) you may need to change parts of the que
 `JsonApiResourceDefinition<TResource>` (which is an empty implementation of `IResourceDefinition<TResource>`) provides overridable methods that pass you the result of query string parameter parsing.
 The value returned by you determines what will be used to execute the query.
 
-An intermediate format (`QueryExpression` and derived types) is used, which enables us to separate json:api implementation 
+An intermediate format (`QueryExpression` and derived types) is used, which enables us to separate JSON:API implementation 
 from Entity Framework Core `IQueryable` execution.
 
 ### Excluding fields
 
-There are some cases where you want attributes conditionally excluded from your resource response.
+There are some cases where you want attributes (or relationships) conditionally excluded from your resource response.
 For example, you may accept some sensitive data that should only be exposed to administrators after creation.
 
 Note: to exclude attributes unconditionally, use `[Attr(Capabilities = ~AttrCapabilities.AllowView)]`.

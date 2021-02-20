@@ -4,17 +4,19 @@ using System.Net;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization.Objects;
+using JsonApiDotNetCoreExampleTests.Startups;
+using TestBuildingBlocks;
 using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
 {
     public sealed class FetchResourceTests
-        : IClassFixture<IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext>>
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext>>
     {
-        private readonly IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> _testContext;
-        private readonly WriteFakers _fakers = new WriteFakers();
+        private readonly ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> _testContext;
+        private readonly ReadWriteFakers _fakers = new ReadWriteFakers();
 
-        public FetchResourceTests(IntegrationTestContext<TestableStartup<WriteDbContext>, WriteDbContext> testContext)
+        public FetchResourceTests(ExampleIntegrationTestContext<TestableStartup<ReadWriteDbContext>, ReadWriteDbContext> testContext)
         {
             _testContext = testContext;
         }
@@ -47,12 +49,14 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             item1.Attributes["description"].Should().Be(workItems[0].Description);
             item1.Attributes["dueAt"].Should().BeCloseTo(workItems[0].DueAt);
             item1.Attributes["priority"].Should().Be(workItems[0].Priority.ToString("G"));
-            
+            item1.Relationships.Should().NotBeEmpty();
+
             var item2 = responseDocument.ManyData.Single(resource => resource.Id == workItems[1].StringId);
             item2.Type.Should().Be("workItems");
             item2.Attributes["description"].Should().Be(workItems[1].Description);
             item2.Attributes["dueAt"].Should().BeCloseTo(workItems[1].DueAt);
             item2.Attributes["priority"].Should().Be(workItems[1].Priority.ToString("G"));
+            item2.Relationships.Should().NotBeEmpty();
         }
 
         [Fact]
@@ -96,6 +100,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             responseDocument.SingleData.Attributes["description"].Should().Be(workItem.Description);
             responseDocument.SingleData.Attributes["dueAt"].Should().BeCloseTo(workItem.DueAt);
             responseDocument.SingleData.Attributes["priority"].Should().Be(workItem.Priority.ToString("G"));
+            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
         }
 
         [Fact]
@@ -157,6 +162,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             responseDocument.SingleData.Id.Should().Be(workItem.Assignee.StringId);
             responseDocument.SingleData.Attributes["firstName"].Should().Be(workItem.Assignee.FirstName);
             responseDocument.SingleData.Attributes["lastName"].Should().Be(workItem.Assignee.LastName);
+            responseDocument.SingleData.Relationships.Should().NotBeEmpty();
         }
 
         [Fact]
@@ -210,12 +216,14 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             item1.Attributes["description"].Should().Be(userAccount.AssignedItems.ElementAt(0).Description);
             item1.Attributes["dueAt"].Should().BeCloseTo(userAccount.AssignedItems.ElementAt(0).DueAt);
             item1.Attributes["priority"].Should().Be(userAccount.AssignedItems.ElementAt(0).Priority.ToString("G"));
-            
+            item1.Relationships.Should().NotBeEmpty();
+
             var item2 = responseDocument.ManyData.Single(resource => resource.Id == userAccount.AssignedItems.ElementAt(1).StringId);
             item2.Type.Should().Be("workItems");
             item2.Attributes["description"].Should().Be(userAccount.AssignedItems.ElementAt(1).Description);
             item2.Attributes["dueAt"].Should().BeCloseTo(userAccount.AssignedItems.ElementAt(1).DueAt);
             item2.Attributes["priority"].Should().Be(userAccount.AssignedItems.ElementAt(1).Priority.ToString("G"));
+            item2.Relationships.Should().NotBeEmpty();
         }
 
         [Fact]
@@ -250,11 +258,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             {
                 new WorkItemTag
                 {
-                    Tag = _fakers.WorkTags.Generate()
+                    Tag = _fakers.WorkTag.Generate()
                 },
                 new WorkItemTag
                 {
-                    Tag = _fakers.WorkTags.Generate()
+                    Tag = _fakers.WorkTag.Generate()
                 }
             };
 
@@ -278,11 +286,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite.Fetching
             item1.Type.Should().Be("workTags");
             item1.Attributes["text"].Should().Be(workItem.WorkItemTags.ElementAt(0).Tag.Text);
             item1.Attributes["isBuiltIn"].Should().Be(workItem.WorkItemTags.ElementAt(0).Tag.IsBuiltIn);
-            
+            item1.Relationships.Should().BeNull();
+
             var item2 = responseDocument.ManyData.Single(resource => resource.Id == workItem.WorkItemTags.ElementAt(1).Tag.StringId);
             item2.Type.Should().Be("workTags");
             item2.Attributes["text"].Should().Be(workItem.WorkItemTags.ElementAt(1).Tag.Text);
             item2.Attributes["isBuiltIn"].Should().Be(workItem.WorkItemTags.ElementAt(1).Tag.IsBuiltIn);
+            item2.Relationships.Should().BeNull();
         }
 
         [Fact]

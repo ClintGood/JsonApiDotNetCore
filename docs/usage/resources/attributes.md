@@ -29,7 +29,7 @@ public class Person : Identifiable
 
 _since v4.0_
 
-Default json:api attribute capabilities are specified in @JsonApiDotNetCore.Configuration.JsonApiOptions#JsonApiDotNetCore_Configuration_JsonApiOptions_DefaultAttrCapabilities:
+Default JSON:API attribute capabilities are specified in @JsonApiDotNetCore.Configuration.JsonApiOptions#JsonApiDotNetCore_Configuration_JsonApiOptions_DefaultAttrCapabilities:
 
 ```c#
 options.DefaultAttrCapabilities = AttrCapabilities.None; // default: All
@@ -39,7 +39,7 @@ This can be overridden per attribute.
 
 ### Viewability
 
-Attributes can be marked to allow returning their value in responses. When not allowed and requested using `?fields=`, it results in an HTTP 400 response.
+Attributes can be marked to allow returning their value in responses. When not allowed and requested using `?fields[]=`, it results in an HTTP 400 response.
 
 ```c#
 public class User : Identifiable

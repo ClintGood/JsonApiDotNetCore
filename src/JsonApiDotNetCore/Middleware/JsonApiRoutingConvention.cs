@@ -31,20 +31,20 @@ namespace JsonApiDotNetCore.Middleware
     public class JsonApiRoutingConvention : IJsonApiRoutingConvention
     {
         private readonly IJsonApiOptions _options;
-        private readonly IResourceGraph _resourceGraph;
+        private readonly IResourceContextProvider _resourceContextProvider;
         private readonly HashSet<string> _registeredTemplates = new HashSet<string>();
 
         private readonly Dictionary<string, ResourceContext> _registeredResources =
             new Dictionary<string, ResourceContext>();
 
-        public JsonApiRoutingConvention(IJsonApiOptions options, IResourceGraph resourceGraph)
+        public JsonApiRoutingConvention(IJsonApiOptions options, IResourceContextProvider resourceContextProvider)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
-            _resourceGraph = resourceGraph ?? throw new ArgumentNullException(nameof(resourceGraph));
+            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
         }
 
         /// <inheritdoc />
-        public Type GetAssociatedResource(string controllerName)
+        public Type GetResourceTypeForController(string controllerName)
         {
             if (controllerName == null) throw new ArgumentNullException(nameof(controllerName));
             
@@ -63,15 +63,19 @@ namespace JsonApiDotNetCore.Middleware
 
             foreach (var controller in application.Controllers)
             {
-                var resourceType = ExtractResourceTypeFromController(controller.ControllerType);
-
-                if (resourceType != null)
+                bool isOperationsController = IsOperationsController(controller.ControllerType);
+                if (!isOperationsController)
                 {
-                    var resourceContext = _resourceGraph.GetResourceContext(resourceType);
-    
-                    if (resourceContext != null)
+                    var resourceType = ExtractResourceTypeFromController(controller.ControllerType);
+
+                    if (resourceType != null)
                     {
-                        _registeredResources.Add(controller.ControllerName, resourceContext);
+                        var resourceContext = _resourceContextProvider.GetResourceContext(resourceType);
+
+                        if (resourceContext != null)
+                        {
+                            _registeredResources.Add(controller.ControllerName, resourceContext);
+                        }
                     }
                 }
 
@@ -168,6 +172,12 @@ namespace JsonApiDotNetCore.Middleware
             }
 
             return currentType?.GetGenericArguments().First();
+        }
+
+        private static bool IsOperationsController(Type type)
+        {
+            var baseControllerType = typeof(BaseJsonApiOperationsController);
+            return baseControllerType.IsAssignableFrom(type);
         }
     }
 }

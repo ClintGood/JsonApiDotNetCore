@@ -1,10 +1,11 @@
+using System;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Middleware
 {
     /// <summary>
-    /// Metadata associated with the json:api request that is currently being processed.
+    /// Metadata associated with the JSON:API request that is currently being processed.
     /// </summary>
     public interface IJsonApiRequest
     {
@@ -57,5 +58,20 @@ namespace JsonApiDotNetCore.Middleware
         /// Indicates whether this request targets only fetching of data (such as resources and relationships).
         /// </summary>
         bool IsReadOnly { get; }
+
+        /// <summary>
+        /// In case of an atomic:operations request, this indicates the kind of operation currently being processed.
+        /// </summary>
+        OperationKind? OperationKind { get; }
+
+        /// <summary>
+        /// In case of an atomic:operations request, identifies the overarching transaction.
+        /// </summary>
+        Guid? TransactionId { get; }
+
+        /// <summary>
+        /// Performs a shallow copy.
+        /// </summary>
+        void CopyFrom(IJsonApiRequest other);
     }
 }
