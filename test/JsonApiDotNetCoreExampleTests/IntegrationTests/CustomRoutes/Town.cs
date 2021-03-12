@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class Town : Identifiable
     {
         [Attr]
@@ -11,7 +13,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
 
         [Attr]
         public double Latitude { get; set; }
-        
+
         [Attr]
         public double Longitude { get; set; }
 

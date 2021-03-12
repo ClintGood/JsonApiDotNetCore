@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Middleware;
@@ -12,6 +13,7 @@ using JsonApiDotNetCore.Serialization.Objects;
 namespace JsonApiDotNetCore.AtomicOperations
 {
     /// <inheritdoc />
+    [PublicAPI]
     public class OperationsProcessor : IOperationsProcessor
     {
         private readonly IOperationProcessorAccessor _operationProcessorAccessor;
@@ -22,40 +24,46 @@ namespace JsonApiDotNetCore.AtomicOperations
         private readonly ITargetedFields _targetedFields;
         private readonly LocalIdValidator _localIdValidator;
 
-        public OperationsProcessor(IOperationProcessorAccessor operationProcessorAccessor,
-            IOperationsTransactionFactory operationsTransactionFactory, ILocalIdTracker localIdTracker,
-            IResourceContextProvider resourceContextProvider, IJsonApiRequest request, ITargetedFields targetedFields)
+        public OperationsProcessor(IOperationProcessorAccessor operationProcessorAccessor, IOperationsTransactionFactory operationsTransactionFactory,
+            ILocalIdTracker localIdTracker, IResourceContextProvider resourceContextProvider, IJsonApiRequest request, ITargetedFields targetedFields)
         {
-            _operationProcessorAccessor = operationProcessorAccessor ?? throw new ArgumentNullException(nameof(operationProcessorAccessor));
-            _operationsTransactionFactory = operationsTransactionFactory ?? throw new ArgumentNullException(nameof(operationsTransactionFactory));
-            _localIdTracker = localIdTracker ?? throw new ArgumentNullException(nameof(localIdTracker));
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
-            _request = request ?? throw new ArgumentNullException(nameof(request));
-            _targetedFields = targetedFields ?? throw new ArgumentNullException(nameof(targetedFields));
+            ArgumentGuard.NotNull(operationProcessorAccessor, nameof(operationProcessorAccessor));
+            ArgumentGuard.NotNull(operationsTransactionFactory, nameof(operationsTransactionFactory));
+            ArgumentGuard.NotNull(localIdTracker, nameof(localIdTracker));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(targetedFields, nameof(targetedFields));
+
+            _operationProcessorAccessor = operationProcessorAccessor;
+            _operationsTransactionFactory = operationsTransactionFactory;
+            _localIdTracker = localIdTracker;
+            _resourceContextProvider = resourceContextProvider;
+            _request = request;
+            _targetedFields = targetedFields;
             _localIdValidator = new LocalIdValidator(_localIdTracker, _resourceContextProvider);
         }
 
         /// <inheritdoc />
-        public virtual async Task<IList<OperationContainer>> ProcessAsync(IList<OperationContainer> operations,
-            CancellationToken cancellationToken)
+        public virtual async Task<IList<OperationContainer>> ProcessAsync(IList<OperationContainer> operations, CancellationToken cancellationToken)
         {
-            if (operations == null) throw new ArgumentNullException(nameof(operations));
+            ArgumentGuard.NotNull(operations, nameof(operations));
 
             _localIdValidator.Validate(operations);
             _localIdTracker.Reset();
 
             var results = new List<OperationContainer>();
 
-            await using var transaction = await _operationsTransactionFactory.BeginTransactionAsync(cancellationToken);
+            await using IOperationsTransaction transaction = await _operationsTransactionFactory.BeginTransactionAsync(cancellationToken);
+
             try
             {
-                foreach (var operation in operations)
+                foreach (OperationContainer operation in operations)
                 {
                     operation.SetTransactionId(transaction.TransactionId);
 
                     await transaction.BeforeProcessOperationAsync(cancellationToken);
 
-                    var result = await ProcessOperation(operation, cancellationToken);
+                    OperationContainer result = await ProcessOperationAsync(operation, cancellationToken);
                     results.Add(result);
 
                     await transaction.AfterProcessOperationAsync(cancellationToken);
@@ -69,14 +77,16 @@ namespace JsonApiDotNetCore.AtomicOperations
             }
             catch (JsonApiException exception)
             {
-                foreach (var error in exception.Errors)
+                foreach (Error error in exception.Errors)
                 {
                     error.Source.Pointer = $"/atomic:operations[{results.Count}]" + error.Source.Pointer;
                 }
 
                 throw;
             }
+#pragma warning disable AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
             catch (Exception exception)
+#pragma warning restore AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
             {
                 throw new JsonApiException(new Error(HttpStatusCode.InternalServerError)
                 {
@@ -86,15 +96,13 @@ namespace JsonApiDotNetCore.AtomicOperations
                     {
                         Pointer = $"/atomic:operations[{results.Count}]"
                     }
-
                 }, exception);
             }
 
             return results;
         }
 
-        protected virtual async Task<OperationContainer> ProcessOperation(OperationContainer operation,
-            CancellationToken cancellationToken)
+        protected virtual async Task<OperationContainer> ProcessOperationAsync(OperationContainer operation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -119,7 +127,7 @@ namespace JsonApiDotNetCore.AtomicOperations
                 AssignStringId(operation.Resource);
             }
 
-            foreach (var secondaryResource in operation.GetSecondaryResources())
+            foreach (IIdentifiable secondaryResource in operation.GetSecondaryResources())
             {
                 AssignStringId(secondaryResource);
             }
@@ -129,7 +137,7 @@ namespace JsonApiDotNetCore.AtomicOperations
         {
             if (resource.LocalId != null)
             {
-                var resourceContext = _resourceContextProvider.GetResourceContext(resource.GetType());
+                ResourceContext resourceContext = _resourceContextProvider.GetResourceContext(resource.GetType());
                 _localIdTracker.Declare(resource.LocalId, resourceContext.PublicName);
             }
         }
@@ -138,7 +146,7 @@ namespace JsonApiDotNetCore.AtomicOperations
         {
             if (resource.LocalId != null)
             {
-                var resourceContext = _resourceContextProvider.GetResourceContext(resource.GetType());
+                ResourceContext resourceContext = _resourceContextProvider.GetResourceContext(resource.GetType());
                 resource.StringId = _localIdTracker.GetValue(resource.LocalId, resourceContext.PublicName);
             }
         }

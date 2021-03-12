@@ -1,4 +1,4 @@
-using System;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Controllers.Annotations;
 using JsonApiDotNetCore.Errors;
@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 namespace JsonApiDotNetCore.QueryStrings.Internal
 {
     /// <inheritdoc />
+    [PublicAPI]
     public class DefaultsQueryStringParameterReader : IDefaultsQueryStringParameterReader
     {
         private readonly IJsonApiOptions _options;
@@ -17,17 +18,19 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
 
         public DefaultsQueryStringParameterReader(IJsonApiOptions options)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            ArgumentGuard.NotNull(options, nameof(options));
+
+            _options = options;
             SerializerDefaultValueHandling = options.SerializerSettings.DefaultValueHandling;
         }
 
         /// <inheritdoc />
         public virtual bool IsEnabled(DisableQueryStringAttribute disableQueryStringAttribute)
         {
-            if (disableQueryStringAttribute == null) throw new ArgumentNullException(nameof(disableQueryStringAttribute));
+            ArgumentGuard.NotNull(disableQueryStringAttribute, nameof(disableQueryStringAttribute));
 
             return _options.AllowQueryStringOverrideForSerializerDefaultValueHandling &&
-                   !disableQueryStringAttribute.ContainsParameter(StandardQueryStringParameters.Defaults);
+                !disableQueryStringAttribute.ContainsParameter(StandardQueryStringParameters.Defaults);
         }
 
         /// <inheritdoc />
@@ -39,10 +42,9 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
         /// <inheritdoc />
         public virtual void Read(string parameterName, StringValues parameterValue)
         {
-            if (!bool.TryParse(parameterValue, out var result))
+            if (!bool.TryParse(parameterValue, out bool result))
             {
-                throw new InvalidQueryStringParameterException(parameterName,
-                    "The specified defaults is invalid.",
+                throw new InvalidQueryStringParameterException(parameterName, "The specified defaults is invalid.",
                     $"The value '{parameterValue}' must be 'true' or 'false'.");
             }
 

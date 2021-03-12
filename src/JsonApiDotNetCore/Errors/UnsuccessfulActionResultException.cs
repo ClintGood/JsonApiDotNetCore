@@ -1,20 +1,21 @@
-using System;
 using System.Net;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Serialization.Objects;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JsonApiDotNetCore.Errors
 {
     /// <summary>
-    /// The error that is thrown when an <see cref="IActionResult"/> with non-success status is returned from a controller method.
+    /// The error that is thrown when an <see cref="IActionResult" /> with non-success status is returned from a controller method.
     /// </summary>
+    [PublicAPI]
     public sealed class UnsuccessfulActionResultException : JsonApiException
     {
-        public UnsuccessfulActionResultException(HttpStatusCode status) 
+        public UnsuccessfulActionResultException(HttpStatusCode status)
             : base(new Error(status)
-        {
-            Title = status.ToString()
-        })
+            {
+                Title = status.ToString()
+            })
         {
         }
 
@@ -25,11 +26,9 @@ namespace JsonApiDotNetCore.Errors
 
         private static Error ToError(ProblemDetails problemDetails)
         {
-            if (problemDetails == null) throw new ArgumentNullException(nameof(problemDetails));
-            
-            var status = problemDetails.Status != null
-                ? (HttpStatusCode) problemDetails.Status.Value
-                : HttpStatusCode.InternalServerError;
+            ArgumentGuard.NotNull(problemDetails, nameof(problemDetails));
+
+            HttpStatusCode status = problemDetails.Status != null ? (HttpStatusCode)problemDetails.Status.Value : HttpStatusCode.InternalServerError;
 
             var error = new Error(status)
             {

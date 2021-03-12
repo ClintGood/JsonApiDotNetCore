@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Hooks.Internal.Execution;
@@ -9,9 +10,11 @@ using JsonApiDotNetCoreExample.Models;
 
 namespace JsonApiDotNetCoreExample.Definitions
 {
-    public class PassportHooksDefinition : LockableHooksDefinition<Passport>
+    [UsedImplicitly(ImplicitUseKindFlags.InstantiatedNoFixedConstructorSignature)]
+    public sealed class PassportHooksDefinition : LockableHooksDefinition<Passport>
     {
-        public PassportHooksDefinition(IResourceGraph resourceGraph) : base(resourceGraph)
+        public PassportHooksDefinition(IResourceGraph resourceGraph)
+            : base(resourceGraph)
         {
         }
 
@@ -28,12 +31,12 @@ namespace JsonApiDotNetCoreExample.Definitions
 
         public override void BeforeImplicitUpdateRelationship(IRelationshipsDictionary<Passport> resourcesByRelationship, ResourcePipeline pipeline)
         {
-            resourcesByRelationship.GetByRelationship<Person>().ToList().ForEach(kvp => DisallowLocked(kvp.Value));
+            resourcesByRelationship.GetByRelationship<Person>().ToList().ForEach(pair => DisallowLocked(pair.Value));
         }
 
         public override IEnumerable<Passport> OnReturn(HashSet<Passport> resources, ResourcePipeline pipeline)
         {
-            return resources.Where(p => !p.IsLocked);
+            return resources.Where(passport => !passport.IsLocked).ToArray();
         }
     }
 }

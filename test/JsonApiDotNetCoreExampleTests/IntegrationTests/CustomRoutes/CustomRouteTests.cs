@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization.Objects;
@@ -9,9 +11,10 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
 {
-    public sealed class CustomRouteTests
-        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CustomRouteDbContext>, CustomRouteDbContext>>
+    public sealed class CustomRouteTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CustomRouteDbContext>, CustomRouteDbContext>>
     {
+        private const string HostPrefix = "http://localhost";
+
         private readonly ExampleIntegrationTestContext<TestableStartup<CustomRouteDbContext>, CustomRouteDbContext> _testContext;
         private readonly CustomRouteFakers _fakers = new CustomRouteFakers();
 
@@ -24,7 +27,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
         public async Task Can_get_resource_at_custom_route()
         {
             // Arrange
-            var town = _fakers.Town.Generate();
+            Town town = _fakers.Town.Generate();
+            town.Civilians = _fakers.Civilian.Generate(1).ToHashSet();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -32,10 +36,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/world-api/civilization/popular/towns/" + town.StringId;
+            string route = "/world-api/civilization/popular/towns/" + town.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -46,17 +50,17 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
             responseDocument.SingleData.Attributes["name"].Should().Be(town.Name);
             responseDocument.SingleData.Attributes["latitude"].Should().Be(town.Latitude);
             responseDocument.SingleData.Attributes["longitude"].Should().Be(town.Longitude);
-            responseDocument.SingleData.Relationships["civilians"].Links.Self.Should().Be($"http://localhost/world-api/civilization/popular/towns/{town.Id}/relationships/civilians");
-            responseDocument.SingleData.Relationships["civilians"].Links.Related.Should().Be($"http://localhost/world-api/civilization/popular/towns/{town.Id}/civilians");
-            responseDocument.SingleData.Links.Self.Should().Be($"http://localhost/world-api/civilization/popular/towns/{town.Id}");
-            responseDocument.Links.Self.Should().Be($"http://localhost/world-api/civilization/popular/towns/{town.Id}");
+            responseDocument.SingleData.Relationships["civilians"].Links.Self.Should().Be(HostPrefix + route + "/relationships/civilians");
+            responseDocument.SingleData.Relationships["civilians"].Links.Related.Should().Be(HostPrefix + route + "/civilians");
+            responseDocument.SingleData.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
         }
 
         [Fact]
         public async Task Can_get_resources_at_custom_action_method()
         {
             // Arrange
-            var town = _fakers.Town.Generate(7);
+            List<Town> town = _fakers.Town.Generate(7);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -65,10 +69,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CustomRoutes
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/world-api/civilization/popular/towns/largest-5";
+            const string route = "/world-api/civilization/popular/towns/largest-5";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);

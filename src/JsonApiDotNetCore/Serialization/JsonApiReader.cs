@@ -2,10 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Http;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Middleware;
@@ -20,6 +21,7 @@ using Microsoft.Extensions.Logging;
 namespace JsonApiDotNetCore.Serialization
 {
     /// <inheritdoc />
+    [PublicAPI]
     public class JsonApiReader : IJsonApiReader
     {
         private readonly IJsonApiDeserializer _deserializer;
@@ -27,23 +29,23 @@ namespace JsonApiDotNetCore.Serialization
         private readonly IResourceContextProvider _resourceContextProvider;
         private readonly TraceLogWriter<JsonApiReader> _traceWriter;
 
-        public JsonApiReader(IJsonApiDeserializer deserializer,
-            IJsonApiRequest request,
-            IResourceContextProvider resourceContextProvider,
+        public JsonApiReader(IJsonApiDeserializer deserializer, IJsonApiRequest request, IResourceContextProvider resourceContextProvider,
             ILoggerFactory loggerFactory)
         {
-            if (loggerFactory == null) throw new ArgumentNullException(nameof(loggerFactory));
+            ArgumentGuard.NotNull(deserializer, nameof(deserializer));
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(loggerFactory, nameof(loggerFactory));
 
-            _deserializer = deserializer ?? throw new ArgumentNullException(nameof(deserializer));
-            _request = request ?? throw new ArgumentNullException(nameof(request));
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
+            _deserializer = deserializer;
+            _request = request;
+            _resourceContextProvider = resourceContextProvider;
             _traceWriter = new TraceLogWriter<JsonApiReader>(loggerFactory);
         }
 
         public async Task<InputFormatterResult> ReadAsync(InputFormatterContext context)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
+            ArgumentGuard.NotNull(context, nameof(context));
 
             string body = await GetRequestBodyAsync(context.HttpContext.Request.Body);
 
@@ -51,6 +53,7 @@ namespace JsonApiDotNetCore.Serialization
             _traceWriter.LogMessage(() => $"Received request at '{url}' with body: <<{body}>>");
 
             object model = null;
+
             if (!string.IsNullOrWhiteSpace(body))
             {
                 try
@@ -61,7 +64,9 @@ namespace JsonApiDotNetCore.Serialization
                 {
                     throw ToInvalidRequestBodyException(exception, body);
                 }
+#pragma warning disable AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
                 catch (Exception exception)
+#pragma warning restore AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
                 {
                     throw new InvalidRequestBodyException(null, null, body, exception);
                 }
@@ -89,17 +94,15 @@ namespace JsonApiDotNetCore.Serialization
         {
             if (_request.Kind != EndpointKind.AtomicOperations)
             {
-                return new InvalidRequestBodyException(exception.GenericMessage, exception.SpecificMessage, body,
-                    exception);
+                return new InvalidRequestBodyException(exception.GenericMessage, exception.SpecificMessage, body, exception);
             }
 
             // In contrast to resource endpoints, we don't include the request body for operations because they are usually very long.
-            var requestException =
-                new InvalidRequestBodyException(exception.GenericMessage, exception.SpecificMessage, null, exception.InnerException);
+            var requestException = new InvalidRequestBodyException(exception.GenericMessage, exception.SpecificMessage, null, exception.InnerException);
 
             if (exception.AtomicOperationIndex != null)
             {
-                foreach (var error in requestException.Errors)
+                foreach (Error error in requestException.Errors)
                 {
                     error.Source.Pointer = $"/atomic:operations[{exception.AtomicOperationIndex}]";
                 }
@@ -107,7 +110,7 @@ namespace JsonApiDotNetCore.Serialization
 
             return requestException;
         }
-        
+
         private bool RequiresRequestBody(string requestMethod)
         {
             if (requestMethod == HttpMethods.Post || requestMethod == HttpMethods.Patch)
@@ -136,6 +139,7 @@ namespace JsonApiDotNetCore.Serialization
             }
         }
 
+        [AssertionMethod]
         private static void AssertHasRequestBody(object model, string body)
         {
             if (model == null && string.IsNullOrWhiteSpace(body))
@@ -149,46 +153,46 @@ namespace JsonApiDotNetCore.Serialization
 
         private void ValidateIncomingResourceType(object model, HttpRequest httpRequest)
         {
-            var endpointResourceType = GetResourceTypeFromEndpoint();
+            Type endpointResourceType = GetResourceTypeFromEndpoint();
+
             if (endpointResourceType == null)
             {
                 return;
             }
 
-            var bodyResourceTypes = GetResourceTypesFromRequestBody(model);
-            foreach (var bodyResourceType in bodyResourceTypes)
+            IEnumerable<Type> bodyResourceTypes = GetResourceTypesFromRequestBody(model);
+
+            foreach (Type bodyResourceType in bodyResourceTypes)
             {
                 if (!endpointResourceType.IsAssignableFrom(bodyResourceType))
                 {
-                    var resourceFromEndpoint = _resourceContextProvider.GetResourceContext(endpointResourceType);
-                    var resourceFromBody = _resourceContextProvider.GetResourceContext(bodyResourceType);
+                    ResourceContext resourceFromEndpoint = _resourceContextProvider.GetResourceContext(endpointResourceType);
+                    ResourceContext resourceFromBody = _resourceContextProvider.GetResourceContext(bodyResourceType);
 
-                    throw new ResourceTypeMismatchException(new HttpMethod(httpRequest.Method),
-                        httpRequest.Path, resourceFromEndpoint, resourceFromBody);
+                    throw new ResourceTypeMismatchException(new HttpMethod(httpRequest.Method), httpRequest.Path, resourceFromEndpoint, resourceFromBody);
                 }
             }
         }
 
         private Type GetResourceTypeFromEndpoint()
         {
-            return _request.Kind == EndpointKind.Primary
-                ? _request.PrimaryResource.ResourceType 
-                : _request.SecondaryResource?.ResourceType;
+            return _request.Kind == EndpointKind.Primary ? _request.PrimaryResource.ResourceType : _request.SecondaryResource?.ResourceType;
         }
 
         private IEnumerable<Type> GetResourceTypesFromRequestBody(object model)
         {
             if (model is IEnumerable<IIdentifiable> resourceCollection)
             {
-                return resourceCollection.Select(r => r.GetType()).Distinct();
+                return resourceCollection.Select(resource => resource.GetType()).Distinct();
             }
 
-            return model == null ? Array.Empty<Type>() : new[] { model.GetType() };
+            return model == null ? Enumerable.Empty<Type>() : model.GetType().AsEnumerable();
         }
 
         private void ValidateRequestIncludesId(object model, string body)
         {
             bool hasMissingId = model is IEnumerable list ? HasMissingId(list) : HasMissingId(model);
+
             if (hasMissingId)
             {
                 throw new InvalidRequestBodyException("Request body must include 'id' element.", null, body);
@@ -199,7 +203,7 @@ namespace JsonApiDotNetCore.Serialization
         {
             if (_request.Kind == EndpointKind.Primary)
             {
-                if (TryGetId(model, out var bodyId) && bodyId != _request.PrimaryId)
+                if (TryGetId(model, out string bodyId) && bodyId != _request.PrimaryId)
                 {
                     throw new ResourceIdMismatchException(bodyId, _request.PrimaryId, requestPath);
                 }
@@ -219,7 +223,7 @@ namespace JsonApiDotNetCore.Serialization
         /// </summary>
         private bool HasMissingId(IEnumerable models)
         {
-            foreach (var model in models)
+            foreach (object model in models)
             {
                 if (TryGetId(model, out string id) && id == null)
                 {
@@ -242,6 +246,7 @@ namespace JsonApiDotNetCore.Serialization
             return false;
         }
 
+        [AssertionMethod]
         private void ValidateForRelationshipType(string requestMethod, object model, string body)
         {
             if (_request.Relationship is HasOneAttribute)

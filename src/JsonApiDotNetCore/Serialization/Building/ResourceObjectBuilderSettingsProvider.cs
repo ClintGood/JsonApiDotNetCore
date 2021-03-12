@@ -1,12 +1,11 @@
-using System;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.QueryStrings;
 
 namespace JsonApiDotNetCore.Serialization.Building
 {
     /// <summary>
-    /// This implementation of the behavior provider reads the defaults/nulls query string parameters that
-    /// can, if provided, override the settings in <see cref="IJsonApiOptions"/>.
+    /// This implementation of the behavior provider reads the defaults/nulls query string parameters that can, if provided, override the settings in
+    /// <see cref="IJsonApiOptions" />.
     /// </summary>
     public sealed class ResourceObjectBuilderSettingsProvider : IResourceObjectBuilderSettingsProvider
     {
@@ -15,8 +14,11 @@ namespace JsonApiDotNetCore.Serialization.Building
 
         public ResourceObjectBuilderSettingsProvider(IDefaultsQueryStringParameterReader defaultsReader, INullsQueryStringParameterReader nullsReader)
         {
-            _defaultsReader = defaultsReader ?? throw new ArgumentNullException(nameof(defaultsReader));
-            _nullsReader = nullsReader ?? throw new ArgumentNullException(nameof(nullsReader));
+            ArgumentGuard.NotNull(defaultsReader, nameof(defaultsReader));
+            ArgumentGuard.NotNull(nullsReader, nameof(nullsReader));
+
+            _defaultsReader = defaultsReader;
+            _nullsReader = nullsReader;
         }
 
         /// <inheritdoc />

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
@@ -10,10 +12,11 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
 {
-    public sealed class PaginationWithoutTotalCountTests 
+    public sealed class PaginationWithoutTotalCountTests
         : IClassFixture<ExampleIntegrationTestContext<TestableStartup<QueryStringDbContext>, QueryStringDbContext>>
     {
-        private const int _defaultPageSize = 5;
+        private const string HostPrefix = "http://localhost";
+        private const int DefaultPageSize = 5;
 
         private readonly ExampleIntegrationTestContext<TestableStartup<QueryStringDbContext>, QueryStringDbContext> _testContext;
         private readonly QueryStringFakers _fakers = new QueryStringFakers();
@@ -22,10 +25,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         {
             _testContext = testContext;
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
 
             options.IncludeTotalResourceCount = false;
-            options.DefaultPageSize = new PageSize(_defaultPageSize);
+            options.DefaultPageSize = new PageSize(DefaultPageSize);
             options.AllowUnknownQueryStringParameters = true;
         }
 
@@ -33,19 +36,19 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Hides_pagination_links_when_unconstrained_page_size()
         {
             // Arrange
-            var options = (JsonApiOptions) _testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)_testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.DefaultPageSize = null;
 
-            var route = "/blogPosts?foo=bar";
+            const string route = "/blogPosts?foo=bar";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be("http://localhost/blogPosts?foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
@@ -56,7 +59,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Renders_pagination_links_when_page_size_is_specified_in_query_string_with_no_data()
         {
             // Arrange
-            var options = (JsonApiOptions) _testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)_testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.DefaultPageSize = null;
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -65,17 +68,17 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/blogPosts?page[size]=8&foo=bar";
+            const string route = "/blogPosts?page[size]=8&foo=bar";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be("http://localhost/blogPosts?page[size]=8&foo=bar");
-            responseDocument.Links.First.Should().Be("http://localhost/blogPosts?page[size]=8&foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.First.Should().Be(HostPrefix + route);
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
@@ -91,19 +94,19 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/blogPosts?page[number]=2&foo=bar";
+            const string route = "/blogPosts?page[number]=2&foo=bar";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be("http://localhost/blogPosts?page[number]=2&foo=bar");
-            responseDocument.Links.First.Should().Be("http://localhost/blogPosts?foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.First.Should().Be(HostPrefix + "/blogPosts?foo=bar");
             responseDocument.Links.Last.Should().BeNull();
-            responseDocument.Links.Prev.Should().Be("http://localhost/blogPosts?foo=bar");
+            responseDocument.Links.Prev.Should().Be(HostPrefix + "/blogPosts?foo=bar");
             responseDocument.Links.Next.Should().BeNull();
         }
 
@@ -111,7 +114,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Renders_pagination_links_when_page_number_is_specified_in_query_string_with_partially_filled_page()
         {
             // Arrange
-            var posts = _fakers.BlogPost.Generate(12);
+            List<BlogPost> posts = _fakers.BlogPost.Generate(12);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -120,21 +123,21 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/blogPosts?foo=bar&page[number]=3";
+            const string route = "/blogPosts?foo=bar&page[number]=3";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.ManyData.Count.Should().BeLessThan(_defaultPageSize);
+            responseDocument.ManyData.Count.Should().BeLessThan(DefaultPageSize);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be("http://localhost/blogPosts?foo=bar&page[number]=3");
-            responseDocument.Links.First.Should().Be("http://localhost/blogPosts?foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.First.Should().Be(HostPrefix + "/blogPosts?foo=bar");
             responseDocument.Links.Last.Should().BeNull();
-            responseDocument.Links.Prev.Should().Be("http://localhost/blogPosts?foo=bar&page[number]=2");
+            responseDocument.Links.Prev.Should().Be(HostPrefix + "/blogPosts?foo=bar&page[number]=2");
             responseDocument.Links.Next.Should().BeNull();
         }
 
@@ -142,7 +145,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Renders_pagination_links_when_page_number_is_specified_in_query_string_with_full_page()
         {
             // Arrange
-            var posts = _fakers.BlogPost.Generate(_defaultPageSize * 3);
+            List<BlogPost> posts = _fakers.BlogPost.Generate(DefaultPageSize * 3);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -151,30 +154,30 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/blogPosts?page[number]=3&foo=bar";
+            const string route = "/blogPosts?page[number]=3&foo=bar";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.ManyData.Should().HaveCount(_defaultPageSize);
+            responseDocument.ManyData.Should().HaveCount(DefaultPageSize);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be("http://localhost/blogPosts?page[number]=3&foo=bar");
-            responseDocument.Links.First.Should().Be("http://localhost/blogPosts?foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.First.Should().Be(HostPrefix + "/blogPosts?foo=bar");
             responseDocument.Links.Last.Should().BeNull();
-            responseDocument.Links.Prev.Should().Be("http://localhost/blogPosts?page[number]=2&foo=bar");
-            responseDocument.Links.Next.Should().Be("http://localhost/blogPosts?page[number]=4&foo=bar");
+            responseDocument.Links.Prev.Should().Be(HostPrefix + "/blogPosts?page[number]=2&foo=bar");
+            responseDocument.Links.Next.Should().Be(HostPrefix + "/blogPosts?page[number]=4&foo=bar");
         }
 
         [Fact]
         public async Task Renders_pagination_links_when_page_number_is_specified_in_query_string_with_full_page_on_secondary_endpoint()
         {
             // Arrange
-            var account = _fakers.WebAccount.Generate();
-            account.Posts = _fakers.BlogPost.Generate(_defaultPageSize * 3);
+            WebAccount account = _fakers.WebAccount.Generate();
+            account.Posts = _fakers.BlogPost.Generate(DefaultPageSize * 3);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -182,22 +185,22 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/webAccounts/{account.StringId}/posts?page[number]=3&foo=bar";
+            string route = $"/webAccounts/{account.StringId}/posts?page[number]=3&foo=bar";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.ManyData.Should().HaveCount(_defaultPageSize);
+            responseDocument.ManyData.Should().HaveCount(DefaultPageSize);
 
             responseDocument.Links.Should().NotBeNull();
-            responseDocument.Links.Self.Should().Be($"http://localhost/webAccounts/{account.StringId}/posts?page[number]=3&foo=bar");
-            responseDocument.Links.First.Should().Be($"http://localhost/webAccounts/{account.StringId}/posts?foo=bar");
+            responseDocument.Links.Self.Should().Be(HostPrefix + route);
+            responseDocument.Links.First.Should().Be(HostPrefix + $"/webAccounts/{account.StringId}/posts?foo=bar");
             responseDocument.Links.Last.Should().BeNull();
-            responseDocument.Links.Prev.Should().Be($"http://localhost/webAccounts/{account.StringId}/posts?page[number]=2&foo=bar");
-            responseDocument.Links.Next.Should().Be($"http://localhost/webAccounts/{account.StringId}/posts?page[number]=4&foo=bar");
+            responseDocument.Links.Prev.Should().Be(HostPrefix + $"/webAccounts/{account.StringId}/posts?page[number]=2&foo=bar");
+            responseDocument.Links.Next.Should().Be(HostPrefix + $"/webAccounts/{account.StringId}/posts?page[number]=4&foo=bar");
         }
     }
 }

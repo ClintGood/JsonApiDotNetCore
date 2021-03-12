@@ -1,7 +1,11 @@
+using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+
+// @formatter:wrap_chained_method_calls chop_always
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class ReadWriteDbContext : DbContext
     {
         public DbSet<WorkItem> WorkItems { get; set; }
@@ -32,10 +36,18 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ReadWrite
                 .HasForeignKey<RgbColor>();
 
             builder.Entity<WorkItemTag>()
-                .HasKey(workItemTag => new { workItemTag.ItemId, workItemTag.TagId});
+                .HasKey(workItemTag => new
+                {
+                    workItemTag.ItemId,
+                    workItemTag.TagId
+                });
 
             builder.Entity<WorkItemToWorkItem>()
-                .HasKey(item => new { item.FromItemId, item.ToItemId});
+                .HasKey(item => new
+                {
+                    item.FromItemId,
+                    item.ToItemId
+                });
 
             builder.Entity<WorkItemToWorkItem>()
                 .HasOne(workItemToWorkItem => workItemToWorkItem.FromItem)

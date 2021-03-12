@@ -1,7 +1,8 @@
-using System;
+using JetBrains.Annotations;
 
 namespace JsonApiDotNetCore.Errors
 {
+    [PublicAPI]
     public sealed class MissingResourceInRelationship
     {
         public string RelationshipName { get; }
@@ -10,9 +11,13 @@ namespace JsonApiDotNetCore.Errors
 
         public MissingResourceInRelationship(string relationshipName, string resourceType, string resourceId)
         {
-            RelationshipName = relationshipName ?? throw new ArgumentNullException(nameof(relationshipName));
-            ResourceType = resourceType ?? throw new ArgumentNullException(nameof(resourceType));
-            ResourceId = resourceId ?? throw new ArgumentNullException(nameof(resourceId));
+            ArgumentGuard.NotNullNorEmpty(relationshipName, nameof(relationshipName));
+            ArgumentGuard.NotNullNorEmpty(resourceType, nameof(resourceType));
+            ArgumentGuard.NotNullNorEmpty(resourceId, nameof(resourceId));
+
+            RelationshipName = relationshipName;
+            ResourceType = resourceType;
+            ResourceId = resourceId;
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Queries.Internal.Parsing;
 
 namespace JsonApiDotNetCore.Queries.Expressions
@@ -9,21 +10,24 @@ namespace JsonApiDotNetCore.Queries.Expressions
     /// <summary>
     /// Represents the "any" filter function, resulting from text such as: any(name,'Jack','Joe')
     /// </summary>
+    [PublicAPI]
     public class EqualsAnyOfExpression : FilterExpression
     {
         public ResourceFieldChainExpression TargetAttribute { get; }
         public IReadOnlyCollection<LiteralConstantExpression> Constants { get; }
 
-        public EqualsAnyOfExpression(ResourceFieldChainExpression targetAttribute,
-            IReadOnlyCollection<LiteralConstantExpression> constants)
+        public EqualsAnyOfExpression(ResourceFieldChainExpression targetAttribute, IReadOnlyCollection<LiteralConstantExpression> constants)
         {
-            TargetAttribute = targetAttribute ?? throw new ArgumentNullException(nameof(targetAttribute));
-            Constants = constants ?? throw new ArgumentNullException(nameof(constants));
+            ArgumentGuard.NotNull(targetAttribute, nameof(targetAttribute));
+            ArgumentGuard.NotNull(constants, nameof(constants));
 
             if (constants.Count < 2)
             {
                 throw new ArgumentException("At least two constants are required.", nameof(constants));
             }
+
+            TargetAttribute = targetAttribute;
+            Constants = constants;
         }
 
         public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
@@ -57,7 +61,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (EqualsAnyOfExpression) obj;
+            var other = (EqualsAnyOfExpression)obj;
 
             return TargetAttribute.Equals(other.TargetAttribute) && Constants.SequenceEqual(other.Constants);
         }
@@ -67,7 +71,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
             var hashCode = new HashCode();
             hashCode.Add(TargetAttribute);
 
-            foreach (var constant in Constants)
+            foreach (LiteralConstantExpression constant in Constants)
             {
                 hashCode.Add(constant);
             }

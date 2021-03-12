@@ -1,9 +1,9 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace JsonApiDotNetCore.AtomicOperations
 {
@@ -17,18 +17,20 @@ namespace JsonApiDotNetCore.AtomicOperations
 
         public EntityFrameworkCoreTransactionFactory(IDbContextResolver dbContextResolver, IJsonApiOptions options)
         {
-            _dbContextResolver = dbContextResolver ?? throw new ArgumentNullException(nameof(dbContextResolver));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            ArgumentGuard.NotNull(dbContextResolver, nameof(dbContextResolver));
+            ArgumentGuard.NotNull(options, nameof(options));
+
+            _dbContextResolver = dbContextResolver;
+            _options = options;
         }
 
         /// <inheritdoc />
         public async Task<IOperationsTransaction> BeginTransactionAsync(CancellationToken cancellationToken)
         {
-            var dbContext = _dbContextResolver.GetContext();
+            DbContext dbContext = _dbContextResolver.GetContext();
 
-            var transaction = _options.TransactionIsolationLevel != null
-                ? await dbContext.Database.BeginTransactionAsync(_options.TransactionIsolationLevel.Value,
-                    cancellationToken)
+            IDbContextTransaction transaction = _options.TransactionIsolationLevel != null
+                ? await dbContext.Database.BeginTransactionAsync(_options.TransactionIsolationLevel.Value, cancellationToken)
                 : await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
             return new EntityFrameworkCoreTransaction(transaction, dbContext);

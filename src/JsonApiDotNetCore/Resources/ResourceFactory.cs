@@ -14,16 +14,15 @@ namespace JsonApiDotNetCore.Resources
 
         public ResourceFactory(IServiceProvider serviceProvider)
         {
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentGuard.NotNull(serviceProvider, nameof(serviceProvider));
+
+            _serviceProvider = serviceProvider;
         }
 
         /// <inheritdoc />
         public IIdentifiable CreateInstance(Type resourceType)
         {
-            if (resourceType == null)
-            {
-                throw new ArgumentNullException(nameof(resourceType));
-            }
+            ArgumentGuard.NotNull(resourceType, nameof(resourceType));
 
             return InnerCreateInstance(resourceType, _serviceProvider);
         }
@@ -32,7 +31,7 @@ namespace JsonApiDotNetCore.Resources
         public TResource CreateInstance<TResource>()
             where TResource : IIdentifiable
         {
-            return (TResource) InnerCreateInstance(typeof(TResource), _serviceProvider);
+            return (TResource)InnerCreateInstance(typeof(TResource), _serviceProvider);
         }
 
         private static IIdentifiable InnerCreateInstance(Type type, IServiceProvider serviceProvider)
@@ -45,41 +44,44 @@ namespace JsonApiDotNetCore.Resources
                     ? (IIdentifiable)Activator.CreateInstance(type)
                     : (IIdentifiable)ActivatorUtilities.CreateInstance(serviceProvider, type);
             }
+#pragma warning disable AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
             catch (Exception exception)
+#pragma warning restore AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
             {
-                throw new InvalidOperationException(hasSingleConstructorWithoutParameters
+                throw new InvalidOperationException(
+                    hasSingleConstructorWithoutParameters
                         ? $"Failed to create an instance of '{type.FullName}' using its default constructor."
-                        : $"Failed to create an instance of '{type.FullName}' using injected constructor parameters.",
-                    exception);
+                        : $"Failed to create an instance of '{type.FullName}' using injected constructor parameters.", exception);
             }
         }
 
         /// <inheritdoc />
         public NewExpression CreateNewExpression(Type resourceType)
         {
-            if (resourceType == null) throw new ArgumentNullException(nameof(resourceType));
+            ArgumentGuard.NotNull(resourceType, nameof(resourceType));
 
             if (HasSingleConstructorWithoutParameters(resourceType))
             {
                 return Expression.New(resourceType);
             }
 
-            List<Expression> constructorArguments = new List<Expression>();
+            var constructorArguments = new List<Expression>();
 
-            var longestConstructor = GetLongestConstructor(resourceType);
+            ConstructorInfo longestConstructor = GetLongestConstructor(resourceType);
+
             foreach (ParameterInfo constructorParameter in longestConstructor.GetParameters())
             {
                 try
                 {
-                    object constructorArgument =
-                        ActivatorUtilities.GetServiceOrCreateInstance(_serviceProvider, constructorParameter.ParameterType);
+                    object constructorArgument = ActivatorUtilities.GetServiceOrCreateInstance(_serviceProvider, constructorParameter.ParameterType);
 
-                    var argumentExpression =
-                        CreateTupleAccessExpressionForConstant(constructorArgument, constructorArgument.GetType());
+                    Expression argumentExpression = CreateTupleAccessExpressionForConstant(constructorArgument, constructorArgument.GetType());
 
                     constructorArguments.Add(argumentExpression);
                 }
+#pragma warning disable AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
                 catch (Exception exception)
+#pragma warning restore AV1210 // Catch a specific exception instead of Exception, SystemException or ApplicationException
                 {
                     throw new InvalidOperationException(
                         $"Failed to create an instance of '{resourceType.FullName}': Parameter '{constructorParameter.Name}' could not be resolved.",
@@ -93,7 +95,7 @@ namespace JsonApiDotNetCore.Resources
         private static Expression CreateTupleAccessExpressionForConstant(object value, Type type)
         {
             MethodInfo tupleCreateMethod = typeof(Tuple).GetMethods()
-                .Single(m => m.Name == "Create" && m.IsGenericMethod && m.GetGenericArguments().Length == 1);
+                .Single(method => method.Name == "Create" && method.IsGenericMethod && method.GetGenericArguments().Length == 1);
 
             MethodInfo constructedTupleCreateMethod = tupleCreateMethod.MakeGenericMethod(type);
 
@@ -105,14 +107,14 @@ namespace JsonApiDotNetCore.Resources
 
         internal static bool HasSingleConstructorWithoutParameters(Type type)
         {
-            ConstructorInfo[] constructors = type.GetConstructors().Where(c => !c.IsStatic).ToArray();
+            ConstructorInfo[] constructors = type.GetConstructors().Where(constructor => !constructor.IsStatic).ToArray();
 
             return constructors.Length == 1 && constructors[0].GetParameters().Length == 0;
         }
 
         private static ConstructorInfo GetLongestConstructor(Type type)
         {
-            ConstructorInfo[] constructors = type.GetConstructors().Where(c => !c.IsStatic).ToArray();
+            ConstructorInfo[] constructors = type.GetConstructors().Where(constructor => !constructor.IsStatic).ToArray();
 
             if (constructors.Length == 0)
             {
@@ -124,8 +126,9 @@ namespace JsonApiDotNetCore.Resources
 
             for (int index = 1; index < constructors.Length; index++)
             {
-                var constructor = constructors[index];
+                ConstructorInfo constructor = constructors[index];
                 int length = constructor.GetParameters().Length;
+
                 if (length > maxParameterLength)
                 {
                     bestMatch = constructor;

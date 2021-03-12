@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -9,7 +10,10 @@ namespace JsonApiDotNetCore.Configuration
     /// </summary>
     internal sealed class ResourceDescriptorAssemblyCache
     {
-        private readonly Dictionary<Assembly, IReadOnlyCollection<ResourceDescriptor>> _resourceDescriptorsPerAssembly = new Dictionary<Assembly, IReadOnlyCollection<ResourceDescriptor>>();
+        private readonly TypeLocator _typeLocator = new TypeLocator();
+
+        private readonly Dictionary<Assembly, IReadOnlyCollection<ResourceDescriptor>> _resourceDescriptorsPerAssembly =
+            new Dictionary<Assembly, IReadOnlyCollection<ResourceDescriptor>>();
 
         public void RegisterAssembly(Assembly assembly)
         {
@@ -23,23 +27,23 @@ namespace JsonApiDotNetCore.Configuration
         {
             EnsureAssembliesScanned();
 
-            return _resourceDescriptorsPerAssembly.Select(pair => (pair.Key, pair.Value));
+            return _resourceDescriptorsPerAssembly.Select(pair => (pair.Key, pair.Value)).ToArray();
         }
 
         private void EnsureAssembliesScanned()
         {
-            foreach (var assemblyToScan in _resourceDescriptorsPerAssembly.Where(pair => pair.Value == null)
-                .Select(pair => pair.Key).ToArray())
+            foreach (Assembly assemblyToScan in _resourceDescriptorsPerAssembly.Where(pair => pair.Value == null).Select(pair => pair.Key).ToArray())
             {
                 _resourceDescriptorsPerAssembly[assemblyToScan] = ScanForResourceDescriptors(assemblyToScan).ToArray();
             }
         }
 
-        private static IEnumerable<ResourceDescriptor> ScanForResourceDescriptors(Assembly assembly)
+        private IEnumerable<ResourceDescriptor> ScanForResourceDescriptors(Assembly assembly)
         {
-            foreach (var type in assembly.GetTypes())
+            foreach (Type type in assembly.GetTypes())
             {
-                var resourceDescriptor = TypeLocator.TryGetResourceDescriptor(type);
+                ResourceDescriptor resourceDescriptor = _typeLocator.TryGetResourceDescriptor(type);
+
                 if (resourceDescriptor != null)
                 {
                     yield return resourceDescriptor;

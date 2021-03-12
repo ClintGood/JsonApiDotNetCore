@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization.Objects;
@@ -19,12 +21,12 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
         {
             _testContext = testContext;
         }
-        
+
         [Fact]
         public async Task Can_create_resource_with_inherited_attributes()
         {
             // Arrange
-            var man = new Man
+            var newMan = new Man
             {
                 FamilyName = "Smith",
                 IsRetired = true,
@@ -38,37 +40,36 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                     type = "men",
                     attributes = new
                     {
-                        familyName = man.FamilyName,
-                        isRetired = man.IsRetired,
-                        hasBeard = man.HasBeard
+                        familyName = newMan.FamilyName,
+                        isRetired = newMan.IsRetired,
+                        hasBeard = newMan.HasBeard
                     }
                 }
             };
 
-            var route = "/men";
+            const string route = "/men";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
             responseDocument.SingleData.Type.Should().Be("men");
-            responseDocument.SingleData.Attributes["familyName"].Should().Be(man.FamilyName);
-            responseDocument.SingleData.Attributes["isRetired"].Should().Be(man.IsRetired);
-            responseDocument.SingleData.Attributes["hasBeard"].Should().Be(man.HasBeard);
+            responseDocument.SingleData.Attributes["familyName"].Should().Be(newMan.FamilyName);
+            responseDocument.SingleData.Attributes["isRetired"].Should().Be(newMan.IsRetired);
+            responseDocument.SingleData.Attributes["hasBeard"].Should().Be(newMan.HasBeard);
 
-            var newManId = int.Parse(responseDocument.SingleData.Id);
+            int newManId = int.Parse(responseDocument.SingleData.Id);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .FirstAsync(m => m.Id == newManId);
-                
-                manInDatabase.FamilyName.Should().Be(man.FamilyName);
-                manInDatabase.IsRetired.Should().Be(man.IsRetired);
-                manInDatabase.HasBeard.Should().Be(man.HasBeard);
+                Man manInDatabase = await dbContext.Men.FirstWithIdAsync(newManId);
+
+                manInDatabase.FamilyName.Should().Be(newMan.FamilyName);
+                manInDatabase.IsRetired.Should().Be(newMan.IsRetired);
+                manInDatabase.HasBeard.Should().Be(newMan.HasBeard);
             });
         }
 
@@ -77,12 +78,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
         {
             // Arrange
             var existingInsurance = new CompanyHealthInsurance();
-            
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 await dbContext.ClearTableAsync<CompanyHealthInsurance>();
                 dbContext.CompanyHealthInsurances.Add(existingInsurance);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -105,23 +105,21 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = "/men";
+            const string route = "/men";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
-            var newManId = int.Parse(responseDocument.SingleData.Id);
+            int newManId = int.Parse(responseDocument.SingleData.Id);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .Include(man => man.HealthInsurance)
-                    .FirstAsync(man => man.Id == newManId);
-                
+                Man manInDatabase = await dbContext.Men.Include(man => man.HealthInsurance).FirstWithIdAsync(newManId);
+
                 manInDatabase.HealthInsurance.Should().BeOfType<CompanyHealthInsurance>();
                 manInDatabase.HealthInsurance.Id.Should().Be(existingInsurance.Id);
             });
@@ -166,10 +164,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = "/men/" + existingMan.StringId;
+            string route = "/men/" + existingMan.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -178,8 +176,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .FirstAsync(man => man.Id == existingMan.Id);
+                Man manInDatabase = await dbContext.Men.FirstWithIdAsync(existingMan.Id);
 
                 manInDatabase.FamilyName.Should().Be(newMan.FamilyName);
                 manInDatabase.IsRetired.Should().Be(newMan.IsRetired);
@@ -198,7 +195,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
             {
                 await dbContext.ClearTablesAsync<Man, CompanyHealthInsurance>();
                 dbContext.AddRange(existingMan, existingInsurance);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -211,10 +207,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = $"/men/{existingMan.StringId}/relationships/healthInsurance";
+            string route = $"/men/{existingMan.StringId}/relationships/healthInsurance";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -223,9 +219,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .Include(man => man.HealthInsurance)
-                    .FirstAsync(man => man.Id == existingMan.Id);
+                Man manInDatabase = await dbContext.Men.Include(man => man.HealthInsurance).FirstWithIdAsync(existingMan.Id);
 
                 manInDatabase.HealthInsurance.Should().BeOfType<CompanyHealthInsurance>();
                 manInDatabase.HealthInsurance.Id.Should().Be(existingInsurance.Id);
@@ -238,12 +232,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
             // Arrange
             var existingFather = new Man();
             var existingMother = new Woman();
-            
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 await dbContext.ClearTablesAsync<Woman, Man>();
                 dbContext.Humans.AddRange(existingFather, existingMother);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -274,22 +267,20 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = "/men";
+            const string route = "/men";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
-            var newManId = int.Parse(responseDocument.SingleData.Id);
+            int newManId = int.Parse(responseDocument.SingleData.Id);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .Include(man => man.Parents)
-                    .FirstAsync(man => man.Id == newManId);
+                Man manInDatabase = await dbContext.Men.Include(man => man.Parents).FirstWithIdAsync(newManId);
 
                 manInDatabase.Parents.Should().HaveCount(2);
                 manInDatabase.Parents.Should().ContainSingle(human => human is Man);
@@ -304,12 +295,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
             var existingChild = new Man();
             var existingFather = new Man();
             var existingMother = new Woman();
-            
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 await dbContext.ClearTablesAsync<Woman, Man>();
                 dbContext.Humans.AddRange(existingChild, existingFather, existingMother);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -330,11 +320,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = $"/men/{existingChild.StringId}/relationships/parents";
+            string route = $"/men/{existingChild.StringId}/relationships/parents";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
-        
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
 
@@ -342,10 +332,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var manInDatabase = await dbContext.Men
-                    .Include(man => man.Parents)
-                    .FirstAsync(man => man.Id == existingChild.Id);
-                
+                Man manInDatabase = await dbContext.Men.Include(man => man.Parents).FirstWithIdAsync(existingChild.Id);
+
                 manInDatabase.Parents.Should().HaveCount(2);
                 manInDatabase.Parents.Should().ContainSingle(human => human is Man);
                 manInDatabase.Parents.Should().ContainSingle(human => human is Woman);
@@ -358,12 +346,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
             // Arrange
             var existingBook = new Book();
             var existingVideo = new Video();
-            
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 await dbContext.ClearTablesAsync<Book, Video, Man>();
                 dbContext.ContentItems.AddRange(existingBook, existingVideo);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -394,23 +381,29 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = "/men";
+            const string route = "/men";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
-        
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
+
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
             responseDocument.SingleData.Should().NotBeNull();
-            var newManId = int.Parse(responseDocument.SingleData.Id);
+            int newManId = int.Parse(responseDocument.SingleData.Id);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var contentItems = await dbContext.HumanFavoriteContentItems
+                // @formatter:wrap_chained_method_calls chop_always
+                // @formatter:keep_existing_linebreaks true
+
+                List<ContentItem> contentItems = await dbContext.HumanFavoriteContentItems
                     .Where(favorite => favorite.Human.Id == newManId)
                     .Select(favorite => favorite.ContentItem)
                     .ToListAsync();
+
+                // @formatter:keep_existing_linebreaks restore
+                // @formatter:wrap_chained_method_calls restore
 
                 contentItems.Should().HaveCount(2);
                 contentItems.Should().ContainSingle(item => item is Book);
@@ -425,12 +418,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
             var existingBook = new Book();
             var existingVideo = new Video();
             var existingMan = new Man();
-            
+
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 await dbContext.ClearTablesAsync<HumanFavoriteContentItem, Book, Video, Man>();
                 dbContext.AddRange(existingBook, existingVideo, existingMan);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -451,11 +443,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
                 }
             };
 
-            var route = $"/men/{existingMan.StringId}/relationships/favoriteContent";
+            string route = $"/men/{existingMan.StringId}/relationships/favoriteContent";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
-            
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
 
@@ -463,10 +455,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceInheritance
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var contentItems = await dbContext.HumanFavoriteContentItems
+                // @formatter:wrap_chained_method_calls chop_always
+                // @formatter:keep_existing_linebreaks true
+
+                List<ContentItem> contentItems = await dbContext.HumanFavoriteContentItems
                     .Where(favorite => favorite.Human.Id == existingMan.Id)
                     .Select(favorite => favorite.ContentItem)
                     .ToListAsync();
+
+                // @formatter:keep_existing_linebreaks restore
+                // @formatter:wrap_chained_method_calls restore
 
                 contentItems.Should().HaveCount(2);
                 contentItems.Should().ContainSingle(item => item is Book);

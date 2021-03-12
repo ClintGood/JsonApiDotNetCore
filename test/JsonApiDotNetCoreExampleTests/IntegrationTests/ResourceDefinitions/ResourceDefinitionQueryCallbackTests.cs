@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using FluentAssertions.Extensions;
@@ -13,7 +14,8 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
 {
-    public sealed class ResourceDefinitionQueryCallbackTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext>>
+    public sealed class ResourceDefinitionQueryCallbackTests
+        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext>>
     {
         private readonly ExampleIntegrationTestContext<TestableStartup<CallableDbContext>, CallableDbContext> _testContext;
 
@@ -27,7 +29,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
                 services.AddSingleton<IUserRolesService, FakeUserRolesService>();
             });
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.IncludeTotalResourceCount = true;
         }
 
@@ -35,7 +37,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
         public async Task Include_from_resource_definition_has_blocked_capability()
         {
             // Arrange
-            var userRolesService = (FakeUserRolesService) _testContext.Factory.Services.GetRequiredService<IUserRolesService>();
+            var userRolesService = (FakeUserRolesService)_testContext.Factory.Services.GetRequiredService<IUserRolesService>();
             userRolesService.AllowIncludeOwner = false;
 
             var resource = new CallableResource
@@ -48,21 +50,23 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?include=owner";
+            const string route = "/callableResources?include=owner";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("Including owner is not permitted.");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("Including owner is not permitted.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
@@ -97,14 +101,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources";
+            const string route = "/callableResources";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -148,14 +151,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?filter=equals(label,'B')";
+            const string route = "/callableResources?filter=equals(label,'B')";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -196,14 +198,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources";
+            const string route = "/callableResources";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -244,14 +245,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?sort=-createdAt,modifiedAt";
+            const string route = "/callableResources?sort=-createdAt,modifiedAt";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -277,14 +277,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?page[size]=8";
+            const string route = "/callableResources?page[size]=8";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -305,14 +304,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}";
+            string route = $"/callableResources/{resource.StringId}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -336,14 +334,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,status";
+            string route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,status";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -355,7 +352,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             responseDocument.SingleData.Attributes["status"].Should().Be("5% completed.");
             responseDocument.SingleData.Relationships.Should().BeNull();
         }
-        
+
         [Fact]
         public async Task Attribute_exclusion_from_resource_definition_is_applied_for_empty_query_string()
         {
@@ -369,14 +366,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}";
+            string route = $"/callableResources/{resource.StringId}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -400,14 +396,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,riskLevel";
+            string route = $"/callableResources/{resource.StringId}?fields[callableResources]=label,riskLevel";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -451,14 +446,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?isHighRisk=true";
+            const string route = "/callableResources?isHighRisk=true";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -500,14 +494,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             {
                 await dbContext.ClearTableAsync<CallableResource>();
                 dbContext.CallableResources.AddRange(resources);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/callableResources?isHighRisk=false&filter=equals(label,'B')";
+            const string route = "/callableResources?isHighRisk=false&filter=equals(label,'B')";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -539,23 +532,24 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceDefinitions
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.CallableResources.Add(resource);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/callableResources/{resource.StringId}/children?isHighRisk=true";
+            string route = $"/callableResources/{resource.StringId}/children?isHighRisk=true";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("Custom query string parameters cannot be used on nested resource endpoints.");
-            responseDocument.Errors[0].Detail.Should().Be("Query string parameter 'isHighRisk' cannot be used on a nested resource endpoint.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("isHighRisk");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("Custom query string parameters cannot be used on nested resource endpoints.");
+            error.Detail.Should().Be("Query string parameter 'isHighRisk' cannot be used on a nested resource endpoint.");
+            error.Source.Parameter.Should().Be("isHighRisk");
         }
 
         private sealed class FakeUserRolesService : IUserRolesService

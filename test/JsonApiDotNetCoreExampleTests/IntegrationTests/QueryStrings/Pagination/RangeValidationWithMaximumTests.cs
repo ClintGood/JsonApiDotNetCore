@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
@@ -13,30 +14,29 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
     public sealed class RangeValidationWithMaximumTests
         : IClassFixture<ExampleIntegrationTestContext<TestableStartup<QueryStringDbContext>, QueryStringDbContext>>
     {
+        private const int MaximumPageSize = 15;
+        private const int MaximumPageNumber = 20;
         private readonly ExampleIntegrationTestContext<TestableStartup<QueryStringDbContext>, QueryStringDbContext> _testContext;
-
-        private const int _maximumPageSize = 15;
-        private const int _maximumPageNumber = 20;
 
         public RangeValidationWithMaximumTests(ExampleIntegrationTestContext<TestableStartup<QueryStringDbContext>, QueryStringDbContext> testContext)
         {
             _testContext = testContext;
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.DefaultPageSize = new PageSize(5);
-            options.MaximumPageSize = new PageSize(_maximumPageSize);
-            options.MaximumPageNumber = new PageNumber(_maximumPageNumber);
+            options.MaximumPageSize = new PageSize(MaximumPageSize);
+            options.MaximumPageNumber = new PageNumber(MaximumPageNumber);
         }
 
         [Fact]
         public async Task Can_use_page_number_below_maximum()
         {
             // Arrange
-            const int pageNumber = _maximumPageNumber - 1;
-            var route = "/blogs?page[number]=" + pageNumber;
+            const int pageNumber = MaximumPageNumber - 1;
+            string route = "/blogs?page[number]=" + pageNumber;
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -46,11 +46,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Can_use_page_number_equal_to_maximum()
         {
             // Arrange
-            const int pageNumber = _maximumPageNumber;
-            var route = "/blogs?page[number]=" + pageNumber;
+            const int pageNumber = MaximumPageNumber;
+            string route = "/blogs?page[number]=" + pageNumber;
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -60,50 +60,54 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Cannot_use_page_number_over_maximum()
         {
             // Arrange
-            const int pageNumber = _maximumPageNumber + 1;
-            var route = "/blogs?page[number]=" + pageNumber;
+            const int pageNumber = MaximumPageNumber + 1;
+            string route = "/blogs?page[number]=" + pageNumber;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("The specified paging is invalid.");
-            responseDocument.Errors[0].Detail.Should().Be($"Page number cannot be higher than {_maximumPageNumber}.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("page[number]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("The specified paging is invalid.");
+            error.Detail.Should().Be($"Page number cannot be higher than {MaximumPageNumber}.");
+            error.Source.Parameter.Should().Be("page[number]");
         }
 
         [Fact]
         public async Task Cannot_use_zero_page_size()
         {
             // Arrange
-            var route = "/blogs?page[size]=0";
+            const string route = "/blogs?page[size]=0";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("The specified paging is invalid.");
-            responseDocument.Errors[0].Detail.Should().Be("Page size cannot be unconstrained.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("page[size]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("The specified paging is invalid.");
+            error.Detail.Should().Be("Page size cannot be unconstrained.");
+            error.Source.Parameter.Should().Be("page[size]");
         }
 
         [Fact]
         public async Task Can_use_page_size_below_maximum()
         {
             // Arrange
-            const int pageSize = _maximumPageSize - 1;
-            var route = "/blogs?page[size]=" + pageSize;
+            const int pageSize = MaximumPageSize - 1;
+            string route = "/blogs?page[size]=" + pageSize;
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -113,11 +117,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Can_use_page_size_equal_to_maximum()
         {
             // Arrange
-            const int pageSize = _maximumPageSize;
-            var route = "/blogs?page[size]=" + pageSize;
+            const int pageSize = MaximumPageSize;
+            string route = "/blogs?page[size]=" + pageSize;
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -127,20 +131,22 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings.Pagination
         public async Task Cannot_use_page_size_over_maximum()
         {
             // Arrange
-            const int pageSize = _maximumPageSize + 1;
-            var route = "/blogs?page[size]=" + pageSize;
+            const int pageSize = MaximumPageSize + 1;
+            string route = "/blogs?page[size]=" + pageSize;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("The specified paging is invalid.");
-            responseDocument.Errors[0].Detail.Should().Be($"Page size cannot be higher than {_maximumPageSize}.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("page[size]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("The specified paging is invalid.");
+            error.Detail.Should().Be($"Page size cannot be higher than {MaximumPageSize}.");
+            error.Source.Parameter.Should().Be("page[size]");
         }
     }
 }

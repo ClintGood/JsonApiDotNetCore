@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
@@ -8,32 +9,26 @@ namespace JsonApiDotNetCore.Queries.Expressions
     /// <summary>
     /// Represents a chain of fields (relationships and attributes), resulting from text such as: articles.revisions.author
     /// </summary>
+    [PublicAPI]
     public class ResourceFieldChainExpression : IdentifierExpression
     {
         public IReadOnlyCollection<ResourceFieldAttribute> Fields { get; }
 
         public ResourceFieldChainExpression(ResourceFieldAttribute field)
         {
-            if (field == null)
-            {
-                throw new ArgumentNullException(nameof(field));
-            }
+            ArgumentGuard.NotNull(field, nameof(field));
 
-            Fields = new[] {field};
+            Fields = field.AsArray();
         }
 
         public ResourceFieldChainExpression(IReadOnlyCollection<ResourceFieldAttribute> fields)
         {
-            Fields = fields ?? throw new ArgumentNullException(nameof(fields));
+            ArgumentGuard.NotNullNorEmpty(fields, nameof(fields));
 
-            if (!fields.Any())
-            {
-                throw new ArgumentException("Must have one or more fields.", nameof(fields));
-            }
+            Fields = fields;
         }
 
-        public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor,
-            TArgument argument)
+        public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
         {
             return visitor.VisitResourceFieldChain(this, argument);
         }
@@ -55,7 +50,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (ResourceFieldChainExpression) obj;
+            var other = (ResourceFieldChainExpression)obj;
 
             return Fields.SequenceEqual(other.Fields);
         }
@@ -64,7 +59,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
         {
             var hashCode = new HashCode();
 
-            foreach (var field in Fields)
+            foreach (ResourceFieldAttribute field in Fields)
             {
                 hashCode.Add(field);
             }

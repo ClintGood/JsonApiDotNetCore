@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Controllers.Annotations;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Middleware;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Primitives;
 namespace JsonApiDotNetCore.QueryStrings.Internal
 {
     /// <inheritdoc />
+    [PublicAPI]
     public class ResourceDefinitionQueryableParameterReader : IResourceDefinitionQueryableParameterReader
     {
         private readonly IJsonApiRequest _request;
@@ -19,8 +21,11 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
 
         public ResourceDefinitionQueryableParameterReader(IJsonApiRequest request, IResourceDefinitionAccessor resourceDefinitionAccessor)
         {
-            _request = request ?? throw new ArgumentNullException(nameof(request));
-            _resourceDefinitionAccessor = resourceDefinitionAccessor ?? throw new ArgumentNullException(nameof(resourceDefinitionAccessor));
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(resourceDefinitionAccessor, nameof(resourceDefinitionAccessor));
+
+            _request = request;
+            _resourceDefinitionAccessor = resourceDefinitionAccessor;
         }
 
         /// <inheritdoc />
@@ -37,27 +42,26 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
                 return false;
             }
 
-            var queryableHandler = GetQueryableHandler(parameterName);
+            object queryableHandler = GetQueryableHandler(parameterName);
             return queryableHandler != null;
         }
 
         /// <inheritdoc />
         public virtual void Read(string parameterName, StringValues parameterValue)
         {
-            var queryableHandler = GetQueryableHandler(parameterName);
+            object queryableHandler = GetQueryableHandler(parameterName);
             var expressionInScope = new ExpressionInScope(null, new QueryableHandlerExpression(queryableHandler, parameterValue));
             _constraints.Add(expressionInScope);
         }
 
         private object GetQueryableHandler(string parameterName)
         {
-            var resourceType = _request.PrimaryResource.ResourceType;
-            var handler = _resourceDefinitionAccessor.GetQueryableHandlerForQueryStringParameter(resourceType, parameterName);
+            Type resourceType = _request.PrimaryResource.ResourceType;
+            object handler = _resourceDefinitionAccessor.GetQueryableHandlerForQueryStringParameter(resourceType, parameterName);
 
             if (handler != null && _request.Kind != EndpointKind.Primary)
             {
-                throw new InvalidQueryStringParameterException(parameterName,
-                    "Custom query string parameters cannot be used on nested resource endpoints.",
+                throw new InvalidQueryStringParameterException(parameterName, "Custom query string parameters cannot be used on nested resource endpoints.",
                     $"Query string parameter '{parameterName}' cannot be used on a nested resource endpoint.");
             }
 

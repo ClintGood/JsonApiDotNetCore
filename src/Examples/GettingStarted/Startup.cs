@@ -1,5 +1,6 @@
 using GettingStarted.Data;
 using GettingStarted.Models;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -13,20 +14,19 @@ namespace GettingStarted
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<SampleDbContext>(
-                options => options.UseSqlite("Data Source=sample.db"));
+            services.AddDbContext<SampleDbContext>(options => options.UseSqlite("Data Source=sample.db"));
 
-            services.AddJsonApi<SampleDbContext>(
-                options =>
-                {
-                    options.Namespace = "api";
-                    options.UseRelativeLinks = true;
-                    options.IncludeTotalResourceCount = true;
-                    options.SerializerSettings.Formatting = Formatting.Indented;
-                });
+            services.AddJsonApi<SampleDbContext>(options =>
+            {
+                options.Namespace = "api";
+                options.UseRelativeLinks = true;
+                options.IncludeTotalResourceCount = true;
+                options.SerializerSettings.Formatting = Formatting.Indented;
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        [UsedImplicitly]
         public void Configure(IApplicationBuilder app, SampleDbContext context)
         {
             context.Database.EnsureDeleted();

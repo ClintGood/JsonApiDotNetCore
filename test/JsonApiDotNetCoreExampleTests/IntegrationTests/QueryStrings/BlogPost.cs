@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class BlogPost : Identifiable
     {
         [Attr]
@@ -22,6 +24,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.QueryStrings
         [NotMapped]
         [HasManyThrough(nameof(BlogPostLabels))]
         public ISet<Label> Labels { get; set; }
+
         public ISet<BlogPostLabel> BlogPostLabels { get; set; }
 
         [HasMany]

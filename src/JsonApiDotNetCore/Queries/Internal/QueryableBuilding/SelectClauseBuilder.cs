@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Repositories;
@@ -14,11 +15,14 @@ using Microsoft.EntityFrameworkCore.Metadata;
 namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 {
     /// <summary>
-    /// Transforms <see cref="SparseFieldSetExpression"/> into <see cref="Queryable.Select{TSource, TKey}(IQueryable{TSource}, Expression{Func{TSource,TKey}})"/> calls.
+    /// Transforms <see cref="SparseFieldSetExpression" /> into
+    /// <see cref="Queryable.Select{TSource, TKey}(IQueryable{TSource}, System.Linq.Expressions.Expression{System.Func{TSource,TKey}})" /> calls.
     /// </summary>
+    [PublicAPI]
     public class SelectClauseBuilder : QueryClauseBuilder<object>
     {
-        private static readonly ConstantExpression _nullConstant = Expression.Constant(null);
+        private static readonly CollectionConverter CollectionConverter = new CollectionConverter();
+        private static readonly ConstantExpression NullConstant = Expression.Constant(null);
 
         private readonly Expression _source;
         private readonly IModel _entityModel;
@@ -27,24 +31,28 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
         private readonly IResourceFactory _resourceFactory;
         private readonly IResourceContextProvider _resourceContextProvider;
 
-        public SelectClauseBuilder(Expression source, LambdaScope lambdaScope, IModel entityModel, Type extensionType,
-            LambdaParameterNameFactory nameFactory, IResourceFactory resourceFactory, IResourceContextProvider resourceContextProvider)
+        public SelectClauseBuilder(Expression source, LambdaScope lambdaScope, IModel entityModel, Type extensionType, LambdaParameterNameFactory nameFactory,
+            IResourceFactory resourceFactory, IResourceContextProvider resourceContextProvider)
             : base(lambdaScope)
         {
-            _source = source ?? throw new ArgumentNullException(nameof(source));
-            _entityModel = entityModel ?? throw new ArgumentNullException(nameof(entityModel));
-            _extensionType = extensionType ?? throw new ArgumentNullException(nameof(extensionType));
-            _nameFactory = nameFactory ?? throw new ArgumentNullException(nameof(nameFactory));
-            _resourceFactory = resourceFactory ?? throw new ArgumentNullException(nameof(resourceFactory));
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(source, nameof(source));
+            ArgumentGuard.NotNull(entityModel, nameof(entityModel));
+            ArgumentGuard.NotNull(extensionType, nameof(extensionType));
+            ArgumentGuard.NotNull(nameFactory, nameof(nameFactory));
+            ArgumentGuard.NotNull(resourceFactory, nameof(resourceFactory));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+
+            _source = source;
+            _entityModel = entityModel;
+            _extensionType = extensionType;
+            _nameFactory = nameFactory;
+            _resourceFactory = resourceFactory;
+            _resourceContextProvider = resourceContextProvider;
         }
 
         public Expression ApplySelect(IDictionary<ResourceFieldAttribute, QueryLayer> selectors, ResourceContext resourceContext)
         {
-            if (selectors == null)
-            {
-                throw new ArgumentNullException(nameof(selectors));
-            }
+            ArgumentGuard.NotNull(selectors, nameof(selectors));
 
             if (!selectors.Any())
             {
@@ -61,8 +69,10 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
         private Expression CreateLambdaBodyInitializer(IDictionary<ResourceFieldAttribute, QueryLayer> selectors, ResourceContext resourceContext,
             LambdaScope lambdaScope, bool lambdaAccessorRequiresTestForNull)
         {
-            var propertySelectors = ToPropertySelectors(selectors, resourceContext, lambdaScope.Accessor.Type);
-            MemberBinding[] propertyAssignments = propertySelectors.Select(selector => CreatePropertyAssignment(selector, lambdaScope)).Cast<MemberBinding>().ToArray();
+            ICollection<PropertySelector> propertySelectors = ToPropertySelectors(selectors, resourceContext, lambdaScope.Accessor.Type);
+
+            MemberBinding[] propertyAssignments =
+                propertySelectors.Select(selector => CreatePropertyAssignment(selector, lambdaScope)).Cast<MemberBinding>().ToArray();
 
             NewExpression newExpression = _resourceFactory.CreateNewExpression(lambdaScope.Accessor.Type);
             Expression memberInit = Expression.MemberInit(newExpression, propertyAssignments);
@@ -83,10 +93,10 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
             return TestForNull(lambdaScope.Accessor, memberInit);
         }
 
-        private ICollection<PropertySelector> ToPropertySelectors(IDictionary<ResourceFieldAttribute, QueryLayer> resourceFieldSelectors, 
+        private ICollection<PropertySelector> ToPropertySelectors(IDictionary<ResourceFieldAttribute, QueryLayer> resourceFieldSelectors,
             ResourceContext resourceContext, Type elementType)
         {
-            Dictionary<PropertyInfo, PropertySelector> propertySelectors = new Dictionary<PropertyInfo, PropertySelector>();
+            var propertySelectors = new Dictionary<PropertyInfo, PropertySelector>();
 
             // If a read-only attribute is selected, its value likely depends on another property, so select all resource properties.
             bool includesReadOnlyAttribute = resourceFieldSelectors.Any(selector =>
@@ -94,9 +104,10 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
             bool containsOnlyRelationships = resourceFieldSelectors.All(selector => selector.Key is RelationshipAttribute);
 
-            foreach (var fieldSelector in resourceFieldSelectors)
+            foreach (KeyValuePair<ResourceFieldAttribute, QueryLayer> fieldSelector in resourceFieldSelectors)
             {
                 var propertySelector = new PropertySelector(fieldSelector.Key, fieldSelector.Value);
+
                 if (propertySelector.Property.SetMethod != null)
                 {
                     propertySelectors[propertySelector.Property] = propertySelector;
@@ -105,12 +116,13 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
             if (includesReadOnlyAttribute || containsOnlyRelationships)
             {
-                var entityModel = _entityModel.GetEntityTypes().Single(type => type.ClrType == elementType);
-                IEnumerable<IProperty> entityProperties = entityModel.GetProperties().Where(p => !p.IsShadowProperty()).ToArray();
+                IEntityType entityModel = _entityModel.GetEntityTypes().Single(type => type.ClrType == elementType);
+                IEnumerable<IProperty> entityProperties = entityModel.GetProperties().Where(property => !property.IsShadowProperty()).ToArray();
 
-                foreach (var entityProperty in entityProperties)
+                foreach (IProperty entityProperty in entityProperties)
                 {
                     var propertySelector = new PropertySelector(entityProperty.PropertyInfo);
+
                     if (propertySelector.Property.SetMethod != null)
                     {
                         propertySelectors[propertySelector.Property] = propertySelector;
@@ -118,7 +130,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
                 }
             }
 
-            foreach (var eagerLoad in resourceContext.EagerLoads)
+            foreach (EagerLoadAttribute eagerLoad in resourceContext.EagerLoads)
             {
                 var propertySelector = new PropertySelector(eagerLoad.Property);
                 propertySelectors[propertySelector.Property] = propertySelector;
@@ -132,9 +144,10 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
             MemberExpression propertyAccess = Expression.Property(lambdaScope.Accessor, selector.Property);
 
             Expression assignmentRightHandSide = propertyAccess;
+
             if (selector.NextLayer != null)
             {
-                HasManyThroughAttribute hasManyThrough = selector.OriginatingField as HasManyThroughAttribute;
+                var hasManyThrough = selector.OriginatingField as HasManyThroughAttribute;
                 var lambdaScopeFactory = new LambdaScopeFactory(_nameFactory, hasManyThrough);
 
                 assignmentRightHandSide = CreateAssignmentRightHandSideForLayer(selector.NextLayer, lambdaScope, propertyAccess,
@@ -147,7 +160,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
         private Expression CreateAssignmentRightHandSideForLayer(QueryLayer layer, LambdaScope outerLambdaScope, MemberExpression propertyAccess,
             PropertyInfo selectorPropertyInfo, LambdaScopeFactory lambdaScopeFactory)
         {
-            Type collectionElementType = TypeHelper.TryGetCollectionElementType(selectorPropertyInfo.PropertyType);
+            Type collectionElementType = CollectionConverter.TryGetCollectionElementType(selectorPropertyInfo.PropertyType);
             Type bodyElementType = collectionElementType ?? selectorPropertyInfo.PropertyType;
 
             if (collectionElementType != null)
@@ -155,22 +168,22 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
                 return CreateCollectionInitializer(outerLambdaScope, selectorPropertyInfo, bodyElementType, layer, lambdaScopeFactory);
             }
 
-            if (layer.Projection == null || !layer.Projection.Any())
+            if (layer.Projection.IsNullOrEmpty())
             {
                 return propertyAccess;
             }
 
-            using var scope = lambdaScopeFactory.CreateScope(bodyElementType, propertyAccess);
+            using LambdaScope scope = lambdaScopeFactory.CreateScope(bodyElementType, propertyAccess);
             return CreateLambdaBodyInitializer(layer.Projection, layer.ResourceContext, scope, true);
         }
 
-        private Expression CreateCollectionInitializer(LambdaScope lambdaScope, PropertyInfo collectionProperty, 
-            Type elementType, QueryLayer layer, LambdaScopeFactory lambdaScopeFactory)
+        private Expression CreateCollectionInitializer(LambdaScope lambdaScope, PropertyInfo collectionProperty, Type elementType, QueryLayer layer,
+            LambdaScopeFactory lambdaScopeFactory)
         {
             MemberExpression propertyExpression = Expression.Property(lambdaScope.Accessor, collectionProperty);
 
-            var builder = new QueryableBuilder(propertyExpression, elementType, typeof(Enumerable), _nameFactory,
-                _resourceFactory, _resourceContextProvider, _entityModel, lambdaScopeFactory);
+            var builder = new QueryableBuilder(propertyExpression, elementType, typeof(Enumerable), _nameFactory, _resourceFactory, _resourceContextProvider,
+                _entityModel, lambdaScopeFactory);
 
             Expression layerExpression = builder.ApplyQuery(layer);
 
@@ -181,47 +194,37 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
             if (EntityFrameworkCoreSupport.Version.Major < 5)
             {
                 Type enumerableOfElementType = typeof(IEnumerable<>).MakeGenericType(elementType);
-                Type typedCollection = TypeHelper.ToConcreteCollectionType(collectionProperty.PropertyType);
+                Type typedCollection = CollectionConverter.ToConcreteCollectionType(collectionProperty.PropertyType);
 
-                ConstructorInfo typedCollectionConstructor = typedCollection.GetConstructor(new[]
-                {
-                    enumerableOfElementType
-                });
+                ConstructorInfo typedCollectionConstructor = typedCollection.GetConstructor(enumerableOfElementType.AsArray());
 
                 if (typedCollectionConstructor == null)
                 {
-                    throw new Exception(
-                        $"Constructor on '{typedCollection.Name}' that accepts '{enumerableOfElementType.Name}' not found.");
+                    throw new InvalidOperationException($"Constructor on '{typedCollection.Name}' that accepts '{enumerableOfElementType.Name}' not found.");
                 }
 
                 return Expression.New(typedCollectionConstructor, layerExpression);
             }
 
-            string operationName = TypeHelper.TypeCanContainHashSet(collectionProperty.PropertyType) ? "ToHashSet" : "ToList";
+            string operationName = CollectionConverter.TypeCanContainHashSet(collectionProperty.PropertyType) ? "ToHashSet" : "ToList";
             return CopyCollectionExtensionMethodCall(layerExpression, operationName, elementType);
         }
 
         private static Expression TestForNull(Expression expressionToTest, Expression ifFalseExpression)
         {
-            BinaryExpression equalsNull = Expression.Equal(expressionToTest, _nullConstant);
-            return Expression.Condition(equalsNull, Expression.Convert(_nullConstant, expressionToTest.Type), ifFalseExpression);
+            BinaryExpression equalsNull = Expression.Equal(expressionToTest, NullConstant);
+            return Expression.Condition(equalsNull, Expression.Convert(NullConstant, expressionToTest.Type), ifFalseExpression);
         }
 
         private static Expression CopyCollectionExtensionMethodCall(Expression source, string operationName, Type elementType)
         {
-            return Expression.Call(typeof(Enumerable), operationName, new[]
-            {
-                elementType
-            }, source);
+            return Expression.Call(typeof(Enumerable), operationName, elementType.AsArray(), source);
         }
 
         private Expression SelectExtensionMethodCall(Expression source, Type elementType, Expression selectorBody)
         {
-            return Expression.Call(_extensionType, "Select", new[]
-            {
-                elementType,
-                elementType
-            }, source, selectorBody);
+            Type[] typeArguments = ArrayFactory.Create(elementType, elementType);
+            return Expression.Call(_extensionType, "Select", typeArguments, source, selectorBody);
         }
 
         private sealed class PropertySelector
@@ -232,18 +235,19 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
             public PropertySelector(PropertyInfo property, QueryLayer nextLayer = null)
             {
-                Property = property ?? throw new ArgumentNullException(nameof(property));
+                ArgumentGuard.NotNull(property, nameof(property));
+
+                Property = property;
                 NextLayer = nextLayer;
             }
 
             public PropertySelector(ResourceFieldAttribute field, QueryLayer nextLayer = null)
             {
-                OriginatingField = field ?? throw new ArgumentNullException(nameof(field));
-                NextLayer = nextLayer;
+                ArgumentGuard.NotNull(field, nameof(field));
 
-                Property = field is HasManyThroughAttribute hasManyThrough
-                    ? hasManyThrough.ThroughProperty
-                    : field.Property;
+                OriginatingField = field;
+                NextLayer = nextLayer;
+                Property = field is HasManyThroughAttribute hasManyThrough ? hasManyThrough.ThroughProperty : field.Property;
             }
 
             public override string ToString()

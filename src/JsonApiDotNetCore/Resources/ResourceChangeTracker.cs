@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources.Annotations;
 using Newtonsoft.Json;
@@ -7,7 +7,9 @@ using Newtonsoft.Json;
 namespace JsonApiDotNetCore.Resources
 {
     /// <inheritdoc />
-    public sealed class ResourceChangeTracker<TResource> : IResourceChangeTracker<TResource> where TResource : class, IIdentifiable
+    [PublicAPI]
+    public sealed class ResourceChangeTracker<TResource> : IResourceChangeTracker<TResource>
+        where TResource : class, IIdentifiable
     {
         private readonly IJsonApiOptions _options;
         private readonly IResourceContextProvider _resourceContextProvider;
@@ -17,27 +19,30 @@ namespace JsonApiDotNetCore.Resources
         private IDictionary<string, string> _requestedAttributeValues;
         private IDictionary<string, string> _finallyStoredAttributeValues;
 
-        public ResourceChangeTracker(IJsonApiOptions options, IResourceContextProvider resourceContextProvider,
-            ITargetedFields targetedFields)
+        public ResourceChangeTracker(IJsonApiOptions options, IResourceContextProvider resourceContextProvider, ITargetedFields targetedFields)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
-            _targetedFields = targetedFields ?? throw new ArgumentNullException(nameof(targetedFields));
+            ArgumentGuard.NotNull(options, nameof(options));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(targetedFields, nameof(targetedFields));
+
+            _options = options;
+            _resourceContextProvider = resourceContextProvider;
+            _targetedFields = targetedFields;
         }
 
         /// <inheritdoc />
         public void SetInitiallyStoredAttributeValues(TResource resource)
         {
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
-            var resourceContext = _resourceContextProvider.GetResourceContext<TResource>();
+            ResourceContext resourceContext = _resourceContextProvider.GetResourceContext<TResource>();
             _initiallyStoredAttributeValues = CreateAttributeDictionary(resource, resourceContext.Attributes);
         }
 
         /// <inheritdoc />
         public void SetRequestedAttributeValues(TResource resource)
         {
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
             _requestedAttributeValues = CreateAttributeDictionary(resource, _targetedFields.Attributes);
         }
@@ -45,21 +50,20 @@ namespace JsonApiDotNetCore.Resources
         /// <inheritdoc />
         public void SetFinallyStoredAttributeValues(TResource resource)
         {
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
-            var resourceContext = _resourceContextProvider.GetResourceContext<TResource>();
+            ResourceContext resourceContext = _resourceContextProvider.GetResourceContext<TResource>();
             _finallyStoredAttributeValues = CreateAttributeDictionary(resource, resourceContext.Attributes);
         }
 
-        private IDictionary<string, string> CreateAttributeDictionary(TResource resource,
-            IEnumerable<AttrAttribute> attributes)
+        private IDictionary<string, string> CreateAttributeDictionary(TResource resource, IEnumerable<AttrAttribute> attributes)
         {
             var result = new Dictionary<string, string>();
 
-            foreach (var attribute in attributes)
+            foreach (AttrAttribute attribute in attributes)
             {
                 object value = attribute.GetValue(resource);
-                var json = JsonConvert.SerializeObject(value, _options.SerializerSettings);
+                string json = JsonConvert.SerializeObject(value, _options.SerializerSettings);
                 result.Add(attribute.PublicName, json);
             }
 
@@ -69,12 +73,12 @@ namespace JsonApiDotNetCore.Resources
         /// <inheritdoc />
         public bool HasImplicitChanges()
         {
-            foreach (var key in _initiallyStoredAttributeValues.Keys)
+            foreach (string key in _initiallyStoredAttributeValues.Keys)
             {
                 if (_requestedAttributeValues.ContainsKey(key))
                 {
-                    var requestedValue = _requestedAttributeValues[key];
-                    var actualValue = _finallyStoredAttributeValues[key];
+                    string requestedValue = _requestedAttributeValues[key];
+                    string actualValue = _finallyStoredAttributeValues[key];
 
                     if (requestedValue != actualValue)
                     {
@@ -83,8 +87,8 @@ namespace JsonApiDotNetCore.Resources
                 }
                 else
                 {
-                    var initiallyStoredValue = _initiallyStoredAttributeValues[key];
-                    var finallyStoredValue = _finallyStoredAttributeValues[key];
+                    string initiallyStoredValue = _initiallyStoredAttributeValues[key];
+                    string finallyStoredValue = _finallyStoredAttributeValues[key];
 
                     if (initiallyStoredValue != finallyStoredValue)
                     {

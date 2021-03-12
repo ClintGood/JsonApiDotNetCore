@@ -1,11 +1,15 @@
 using System.Linq;
+using JetBrains.Annotations;
+using JsonApiDotNetCore;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Resources;
+using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
 {
-    public class SoftDeletionResourceDefinition<TResource> : JsonApiResourceDefinition<TResource>
+    [UsedImplicitly(ImplicitUseKindFlags.InstantiatedNoFixedConstructorSignature)]
+    public sealed class SoftDeletionResourceDefinition<TResource> : JsonApiResourceDefinition<TResource>
         where TResource : class, IIdentifiable<int>, ISoftDeletable
     {
         private readonly IResourceGraph _resourceGraph;
@@ -18,16 +22,17 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
 
         public override FilterExpression OnApplyFilter(FilterExpression existingFilter)
         {
-            var resourceContext = _resourceGraph.GetResourceContext<TResource>();
-            var isSoftDeletedAttribute = resourceContext.Attributes.Single(attribute => attribute.Property.Name == nameof(ISoftDeletable.IsSoftDeleted));
+            ResourceContext resourceContext = _resourceGraph.GetResourceContext<TResource>();
 
-            var isNotSoftDeleted = new ComparisonExpression(ComparisonOperator.Equals,
-                new ResourceFieldChainExpression(isSoftDeletedAttribute), new LiteralConstantExpression("false"));
+            AttrAttribute isSoftDeletedAttribute =
+                resourceContext.Attributes.Single(attribute => attribute.Property.Name == nameof(ISoftDeletable.IsSoftDeleted));
+
+            var isNotSoftDeleted = new ComparisonExpression(ComparisonOperator.Equals, new ResourceFieldChainExpression(isSoftDeletedAttribute),
+                new LiteralConstantExpression("false"));
 
             return existingFilter == null
-                ? (FilterExpression) isNotSoftDeleted
-                : new LogicalExpression(LogicalOperator.And, new[] {isNotSoftDeleted, existingFilter});
+                ? (FilterExpression)isNotSoftDeleted
+                : new LogicalExpression(LogicalOperator.And, ArrayFactory.Create(isNotSoftDeleted, existingFilter));
         }
-
     }
 }

@@ -14,22 +14,26 @@ namespace UnitTests.Serialization.Client
 
         public RequestSerializerTests()
         {
-            var builder = new ResourceObjectBuilder(_resourceGraph, new ResourceObjectBuilderSettings());
-            _serializer = new RequestSerializer(_resourceGraph, builder);
+            var builder = new ResourceObjectBuilder(ResourceGraph, new ResourceObjectBuilderSettings());
+            _serializer = new RequestSerializer(ResourceGraph, builder);
         }
 
         [Fact]
         public void SerializeSingle_ResourceWithDefaultTargetFields_CanBuild()
         {
             // Arrange
-            var resource = new TestResource { Id = 1, StringField = "value", NullableIntField = 123 };
+            var resource = new TestResource
+            {
+                Id = 1,
+                StringField = "value",
+                NullableIntField = 123
+            };
 
             // Act
             string serialized = _serializer.Serialize(resource);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                ""data"":{
                   ""type"":""testResource"",
                   ""id"":""1"",
@@ -44,7 +48,8 @@ namespace UnitTests.Serialization.Client
                   }
                }
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -52,15 +57,20 @@ namespace UnitTests.Serialization.Client
         public void SerializeSingle_ResourceWithTargetedSetAttributes_CanBuild()
         {
             // Arrange
-            var resource = new TestResource { Id = 1, StringField = "value", NullableIntField = 123 };
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
+            var resource = new TestResource
+            {
+                Id = 1,
+                StringField = "value",
+                NullableIntField = 123
+            };
+
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
 
             // Act
             string serialized = _serializer.Serialize(resource);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                ""data"":{
                   ""type"":""testResource"",
                   ""id"":""1"",
@@ -69,7 +79,8 @@ namespace UnitTests.Serialization.Client
                   }
                }
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -77,15 +88,20 @@ namespace UnitTests.Serialization.Client
         public void SerializeSingle_NoIdWithTargetedSetAttributes_CanBuild()
         {
             // Arrange
-            var resourceNoId = new TestResource { Id = 0, StringField = "value", NullableIntField = 123 };
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
+            var resourceNoId = new TestResource
+            {
+                Id = 0,
+                StringField = "value",
+                NullableIntField = 123
+            };
+
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
 
             // Act
             string serialized = _serializer.Serialize(resourceNoId);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                ""data"":{
                   ""type"":""testResource"",
                   ""attributes"":{
@@ -94,7 +110,7 @@ namespace UnitTests.Serialization.Client
                }
             }";
 
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -102,22 +118,29 @@ namespace UnitTests.Serialization.Client
         public void SerializeSingle_ResourceWithoutTargetedAttributes_CanBuild()
         {
             // Arrange
-            var resource = new TestResource { Id = 1, StringField = "value", NullableIntField = 123 };
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => new { });
+            var resource = new TestResource
+            {
+                Id = 1,
+                StringField = "value",
+                NullableIntField = 123
+            };
+
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(_ => new
+            {
+            });
 
             // Act
             string serialized = _serializer.Serialize(resource);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                ""data"":{
                   ""type"":""testResource"",
                   ""id"":""1""
                }
             }";
 
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -127,16 +150,32 @@ namespace UnitTests.Serialization.Client
             // Arrange
             var resourceWithRelationships = new MultipleRelationshipsPrincipalPart
             {
-                PopulatedToOne = new OneToOneDependent { Id = 10 },
-                PopulatedToManies = new HashSet<OneToManyDependent> { new OneToManyDependent { Id = 20 } }
+                PopulatedToOne = new OneToOneDependent
+                {
+                    Id = 10
+                },
+                PopulatedToManies = new HashSet<OneToManyDependent>
+                {
+                    new OneToManyDependent
+                    {
+                        Id = 20
+                    }
+                }
             };
-            _serializer.RelationshipsToSerialize = _resourceGraph.GetRelationships<MultipleRelationshipsPrincipalPart>(tr => new { tr.EmptyToOne, tr.EmptyToManies, tr.PopulatedToOne, tr.PopulatedToManies });
+
+            _serializer.RelationshipsToSerialize = ResourceGraph.GetRelationships<MultipleRelationshipsPrincipalPart>(tr => new
+            {
+                tr.EmptyToOne,
+                tr.EmptyToManies,
+                tr.PopulatedToOne,
+                tr.PopulatedToManies
+            });
 
             // Act
             string serialized = _serializer.Serialize(resourceWithRelationships);
+
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                 ""data"":{
                     ""type"":""multiPrincipals"",
                     ""attributes"":{
@@ -166,7 +205,8 @@ namespace UnitTests.Serialization.Client
                     }
                 }
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -176,17 +216,27 @@ namespace UnitTests.Serialization.Client
             // Arrange
             var resources = new List<TestResource>
             {
-                new TestResource { Id = 1, StringField = "value1", NullableIntField = 123 },
-                new TestResource { Id = 2, StringField = "value2", NullableIntField = 123 }
+                new TestResource
+                {
+                    Id = 1,
+                    StringField = "value1",
+                    NullableIntField = 123
+                },
+                new TestResource
+                {
+                    Id = 2,
+                    StringField = "value2",
+                    NullableIntField = 123
+                }
             };
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
+
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
 
             // Act
             string serialized = _serializer.Serialize(resources);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                 ""data"":[
                     {
                         ""type"":""testResource"",
@@ -204,7 +254,8 @@ namespace UnitTests.Serialization.Client
                     }
                 ]
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -212,17 +263,17 @@ namespace UnitTests.Serialization.Client
         public void SerializeSingle_Null_CanBuild()
         {
             // Arrange
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
 
             // Act
-            string serialized = _serializer.Serialize((IIdentifiable) null);
+            string serialized = _serializer.Serialize((IIdentifiable)null);
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                 ""data"":null
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
 
@@ -230,18 +281,17 @@ namespace UnitTests.Serialization.Client
         public void SerializeMany_EmptyList_CanBuild()
         {
             // Arrange
-            var resources = new List<TestResource>();
-            _serializer.AttributesToSerialize = _resourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
+            _serializer.AttributesToSerialize = ResourceGraph.GetAttributes<TestResource>(tr => tr.StringField);
 
             // Act
-            string serialized = _serializer.Serialize(resources);
+            string serialized = _serializer.Serialize(new List<TestResource>());
 
             // Assert
-            var expectedFormatted =
-            @"{
+            const string expectedFormatted = @"{
                 ""data"":[]
             }";
-            var expected = Regex.Replace(expectedFormatted, @"\s+", "");
+
+            string expected = Regex.Replace(expectedFormatted, @"\s+", "");
             Assert.Equal(expected, serialized);
         }
     }

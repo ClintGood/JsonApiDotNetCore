@@ -20,8 +20,8 @@ namespace JsonApiDotNetCore.AtomicOperations
         /// <inheritdoc />
         public void Declare(string localId, string resourceType)
         {
-            if (localId == null) throw new ArgumentNullException(nameof(localId));
-            if (resourceType == null) throw new ArgumentNullException(nameof(resourceType));
+            ArgumentGuard.NotNullNorEmpty(localId, nameof(localId));
+            ArgumentGuard.NotNullNorEmpty(resourceType, nameof(resourceType));
 
             AssertIsNotDeclared(localId);
 
@@ -43,13 +43,13 @@ namespace JsonApiDotNetCore.AtomicOperations
         /// <inheritdoc />
         public void Assign(string localId, string resourceType, string stringId)
         {
-            if (localId == null) throw new ArgumentNullException(nameof(localId));
-            if (resourceType == null) throw new ArgumentNullException(nameof(resourceType));
-            if (stringId == null) throw new ArgumentNullException(nameof(stringId));
+            ArgumentGuard.NotNullNorEmpty(localId, nameof(localId));
+            ArgumentGuard.NotNullNorEmpty(resourceType, nameof(resourceType));
+            ArgumentGuard.NotNullNorEmpty(stringId, nameof(stringId));
 
             AssertIsDeclared(localId);
 
-            var item = _idsTracked[localId];
+            LocalIdState item = _idsTracked[localId];
 
             AssertSameResourceType(resourceType, item.ResourceType, localId);
 
@@ -64,12 +64,12 @@ namespace JsonApiDotNetCore.AtomicOperations
         /// <inheritdoc />
         public string GetValue(string localId, string resourceType)
         {
-            if (localId == null) throw new ArgumentNullException(nameof(localId));
-            if (resourceType == null) throw new ArgumentNullException(nameof(resourceType));
+            ArgumentGuard.NotNullNorEmpty(localId, nameof(localId));
+            ArgumentGuard.NotNullNorEmpty(resourceType, nameof(resourceType));
 
             AssertIsDeclared(localId);
 
-            var item = _idsTracked[localId];
+            LocalIdState item = _idsTracked[localId];
 
             AssertSameResourceType(resourceType, item.ResourceType, localId);
 

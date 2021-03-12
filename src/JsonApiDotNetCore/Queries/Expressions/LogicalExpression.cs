@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Humanizer;
+using JetBrains.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
 {
     /// <summary>
     /// Represents a logical filter function, resulting from text such as: and(equals(title,'Work'),has(articles))
     /// </summary>
+    [PublicAPI]
     public class LogicalExpression : FilterExpression
     {
         public LogicalOperator Operator { get; }
@@ -16,10 +18,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
 
         public LogicalExpression(LogicalOperator @operator, IReadOnlyCollection<QueryExpression> terms)
         {
-            if (terms == null)
-            {
-                throw new ArgumentNullException(nameof(terms));
-            }
+            ArgumentGuard.NotNull(terms, nameof(terms));
 
             if (terms.Count < 2)
             {
@@ -59,7 +58,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (LogicalExpression) obj;
+            var other = (LogicalExpression)obj;
 
             return Operator == other.Operator && Terms.SequenceEqual(other.Terms);
         }
@@ -69,7 +68,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
             var hashCode = new HashCode();
             hashCode.Add(Operator);
 
-            foreach (var term in Terms)
+            foreach (QueryExpression term in Terms)
             {
                 hashCode.Add(term);
             }

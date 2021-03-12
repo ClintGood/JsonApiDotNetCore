@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.QueryStrings;
@@ -10,8 +11,7 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.RestrictedControllers
 {
-    public sealed class DisableQueryStringTests
-        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<RestrictionDbContext>, RestrictionDbContext>>
+    public sealed class DisableQueryStringTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<RestrictionDbContext>, RestrictionDbContext>>
     {
         private readonly ExampleIntegrationTestContext<TestableStartup<RestrictionDbContext>, RestrictionDbContext> _testContext;
 
@@ -30,57 +30,63 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.RestrictedControllers
         public async Task Cannot_sort_if_query_string_parameter_is_blocked_by_controller()
         {
             // Arrange
-            var route = "/sofas?sort=id";
+            const string route = "/sofas?sort=id";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
-            responseDocument.Errors[0].Detail.Should().Be("The parameter 'sort' cannot be used at this endpoint.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("sort");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
+            error.Detail.Should().Be("The parameter 'sort' cannot be used at this endpoint.");
+            error.Source.Parameter.Should().Be("sort");
         }
 
         [Fact]
         public async Task Cannot_paginate_if_query_string_parameter_is_blocked_by_controller()
         {
             // Arrange
-            var route = "/sofas?page[number]=2";
+            const string route = "/sofas?page[number]=2";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
-            responseDocument.Errors[0].Detail.Should().Be("The parameter 'page[number]' cannot be used at this endpoint.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("page[number]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
+            error.Detail.Should().Be("The parameter 'page[number]' cannot be used at this endpoint.");
+            error.Source.Parameter.Should().Be("page[number]");
         }
 
         [Fact]
         public async Task Cannot_use_custom_query_string_parameter_if_blocked_by_controller()
         {
             // Arrange
-            var route = "/beds?skipCache=true";
+            const string route = "/beds?skipCache=true";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.BadRequest);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            responseDocument.Errors[0].Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
-            responseDocument.Errors[0].Detail.Should().Be("The parameter 'skipCache' cannot be used at this endpoint.");
-            responseDocument.Errors[0].Source.Parameter.Should().Be("skipCache");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            error.Title.Should().Be("Usage of one or more query string parameters is not allowed at the requested endpoint.");
+            error.Detail.Should().Be("The parameter 'skipCache' cannot be used at this endpoint.");
+            error.Source.Parameter.Should().Be("skipCache");
         }
     }
 }

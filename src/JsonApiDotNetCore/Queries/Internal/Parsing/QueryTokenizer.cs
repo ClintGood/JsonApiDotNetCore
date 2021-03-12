@@ -1,14 +1,15 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
+using JetBrains.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Internal.Parsing
 {
+    [PublicAPI]
     public sealed class QueryTokenizer
     {
-        public static readonly IReadOnlyDictionary<char, TokenKind> SingleCharacterToTokenKinds =
-            new ReadOnlyDictionary<char, TokenKind>(new Dictionary<char, TokenKind>
+        public static readonly IReadOnlyDictionary<char, TokenKind> SingleCharacterToTokenKinds = new ReadOnlyDictionary<char, TokenKind>(
+            new Dictionary<char, TokenKind>
             {
                 ['('] = TokenKind.OpenParen,
                 [')'] = TokenKind.CloseParen,
@@ -26,7 +27,9 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
 
         public QueryTokenizer(string source)
         {
-            _source = source ?? throw new ArgumentNullException(nameof(source));
+            ArgumentGuard.NotNull(source, nameof(source));
+
+            _source = source;
         }
 
         public IEnumerable<Token> EnumerateTokens()

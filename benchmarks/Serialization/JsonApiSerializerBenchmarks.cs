@@ -11,26 +11,28 @@ using Moq;
 
 namespace Benchmarks.Serialization
 {
+    // ReSharper disable once ClassCanBeSealed.Global
     [MarkdownExporter]
     public class JsonApiSerializerBenchmarks
     {
-        private static readonly BenchmarkResource _content = new BenchmarkResource
+        private static readonly BenchmarkResource Content = new BenchmarkResource
         {
             Id = 123,
             Name = Guid.NewGuid().ToString()
         };
 
+        private readonly DependencyFactory _dependencyFactory = new DependencyFactory();
         private readonly IJsonApiSerializer _jsonApiSerializer;
 
         public JsonApiSerializerBenchmarks()
         {
             var options = new JsonApiOptions();
-            IResourceGraph resourceGraph = DependencyFactory.CreateResourceGraph(options);
+            IResourceGraph resourceGraph = _dependencyFactory.CreateResourceGraph(options);
             IFieldsToSerialize fieldsToSerialize = CreateFieldsToSerialize(resourceGraph);
 
-            var metaBuilder = new Mock<IMetaBuilder>().Object;
-            var linkBuilder = new Mock<ILinkBuilder>().Object;
-            var includeBuilder = new Mock<IIncludedResourceObjectBuilder>().Object;
+            IMetaBuilder metaBuilder = new Mock<IMetaBuilder>().Object;
+            ILinkBuilder linkBuilder = new Mock<ILinkBuilder>().Object;
+            IIncludedResourceObjectBuilder includeBuilder = new Mock<IIncludedResourceObjectBuilder>().Object;
 
             var resourceObjectBuilder = new ResourceObjectBuilder(resourceGraph, new ResourceObjectBuilderSettings());
 
@@ -47,12 +49,15 @@ namespace Benchmarks.Serialization
                 new SparseFieldSetQueryStringParameterReader(request, resourceGraph)
             };
 
-            var accessor = new Mock<IResourceDefinitionAccessor>().Object;
+            IResourceDefinitionAccessor accessor = new Mock<IResourceDefinitionAccessor>().Object;
 
             return new FieldsToSerialize(resourceGraph, constraintProviders, accessor, request);
         }
 
         [Benchmark]
-        public object SerializeSimpleObject() => _jsonApiSerializer.Serialize(_content);
+        public object SerializeSimpleObject()
+        {
+            return _jsonApiSerializer.Serialize(Content);
+        }
     }
 }

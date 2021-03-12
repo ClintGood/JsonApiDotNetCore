@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Resources;
@@ -48,14 +49,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             {
                 await dbContext.ClearTableAsync<Department>();
                 dbContext.Departments.AddRange(departments);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/departments";
+            const string route = "/departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -89,14 +89,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             {
                 await dbContext.ClearTableAsync<Department>();
                 dbContext.Departments.AddRange(departments);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/departments?filter=startsWith(name,'S')";
+            const string route = "/departments?filter=startsWith(name,'S')";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -118,23 +117,24 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Departments.Add(department);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/departments/" + department.StringId;
+            string route = "/departments/" + department.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("The requested resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be($"Resource of type 'departments' with ID '{department.StringId}' does not exist.");
-            responseDocument.Errors[0].Source.Parameter.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("The requested resource does not exist.");
+            error.Detail.Should().Be($"Resource of type 'departments' with ID '{department.StringId}' does not exist.");
+            error.Source.Parameter.Should().BeNull();
         }
 
         [Fact]
@@ -160,14 +160,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/companies/{company.StringId}/departments";
+            string route = $"/companies/{company.StringId}/departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -195,23 +194,24 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/companies/{company.StringId}/departments";
+            string route = $"/companies/{company.StringId}/departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("The requested resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
-            responseDocument.Errors[0].Source.Parameter.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("The requested resource does not exist.");
+            error.Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
+            error.Source.Parameter.Should().BeNull();
         }
 
         [Fact]
@@ -254,14 +254,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             {
                 await dbContext.ClearTableAsync<Company>();
                 dbContext.Companies.AddRange(companies);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/companies?include=departments";
+            const string route = "/companies?include=departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -298,14 +297,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/companies/{company.StringId}/relationships/departments";
+            string route = $"/companies/{company.StringId}/relationships/departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -333,23 +331,24 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/companies/{company.StringId}/relationships/departments";
+            string route = $"/companies/{company.StringId}/relationships/departments";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("The requested resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
-            responseDocument.Errors[0].Source.Parameter.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("The requested resource does not exist.");
+            error.Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
+            error.Source.Parameter.Should().BeNull();
         }
 
         [Fact]
@@ -364,7 +363,6 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -381,19 +379,21 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
                 }
             };
 
-            var route = "/companies/" + company.StringId;
+            string route = "/companies/" + company.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("The requested resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
-            responseDocument.Errors[0].Source.Parameter.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("The requested resource does not exist.");
+            error.Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
+            error.Source.Parameter.Should().BeNull();
         }
 
         [Fact]
@@ -415,11 +415,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.Companies.Add(company);
-
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/companies/{company.StringId}/relationships/departments";
+            string route = $"/companies/{company.StringId}/relationships/departments";
 
             var requestBody = new
             {
@@ -427,16 +426,18 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.SoftDeletion
             };
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("The requested resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
-            responseDocument.Errors[0].Source.Parameter.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("The requested resource does not exist.");
+            error.Detail.Should().Be($"Resource of type 'companies' with ID '{company.StringId}' does not exist.");
+            error.Source.Parameter.Should().BeNull();
         }
     }
 }

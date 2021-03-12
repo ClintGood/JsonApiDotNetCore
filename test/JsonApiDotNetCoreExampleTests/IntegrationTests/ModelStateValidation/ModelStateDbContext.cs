@@ -1,13 +1,18 @@
+using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+
+// @formatter:wrap_chained_method_calls chop_always
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ModelStateValidation
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class ModelStateDbContext : DbContext
     {
         public DbSet<SystemDirectory> Directories { get; set; }
         public DbSet<SystemFile> Files { get; set; }
 
-        public ModelStateDbContext(DbContextOptions<ModelStateDbContext> options) : base(options)
+        public ModelStateDbContext(DbContextOptions<ModelStateDbContext> options)
+            : base(options)
         {
         }
 
@@ -15,7 +20,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ModelStateValidation
         {
             builder.Entity<SystemDirectory>()
                 .HasMany(systemDirectory => systemDirectory.Subdirectories)
-                .WithOne(x => x.Parent);
+                .WithOne(systemDirectory => systemDirectory.Parent);
 
             builder.Entity<SystemDirectory>()
                 .HasOne(systemDirectory => systemDirectory.Self)

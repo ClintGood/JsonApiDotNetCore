@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Serialization.Objects;
@@ -9,6 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace JsonApiDotNetCore.Middleware
 {
     /// <inheritdoc />
+    [PublicAPI]
     public class ExceptionHandler : IExceptionHandler
     {
         private readonly IJsonApiOptions _options;
@@ -16,15 +19,16 @@ namespace JsonApiDotNetCore.Middleware
 
         public ExceptionHandler(ILoggerFactory loggerFactory, IJsonApiOptions options)
         {
-            if (loggerFactory == null) throw new ArgumentNullException(nameof(loggerFactory));
+            ArgumentGuard.NotNull(loggerFactory, nameof(loggerFactory));
+            ArgumentGuard.NotNull(options, nameof(options));
 
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _options = options;
             _logger = loggerFactory.CreateLogger<ExceptionHandler>();
         }
 
         public ErrorDocument HandleException(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentGuard.NotNull(exception, nameof(exception));
 
             Exception demystified = exception.Demystify();
 
@@ -35,15 +39,15 @@ namespace JsonApiDotNetCore.Middleware
 
         private void LogException(Exception exception)
         {
-            var level = GetLogLevel(exception);
-            var message = GetLogMessage(exception);
-            
+            LogLevel level = GetLogLevel(exception);
+            string message = GetLogMessage(exception);
+
             _logger.Log(level, exception, message);
         }
 
         protected virtual LogLevel GetLogLevel(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentGuard.NotNull(exception, nameof(exception));
 
             if (exception is OperationCanceledException)
             {
@@ -60,35 +64,26 @@ namespace JsonApiDotNetCore.Middleware
 
         protected virtual string GetLogMessage(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentGuard.NotNull(exception, nameof(exception));
 
             return exception.Message;
         }
 
         protected virtual ErrorDocument CreateErrorDocument(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentGuard.NotNull(exception, nameof(exception));
 
-            var errors = exception is JsonApiException jsonApiException
-                ? jsonApiException.Errors
-                : exception is OperationCanceledException
-                    ? new[]
-                    {
-                        new Error((HttpStatusCode) 499)
-                        {
-                            Title = "Request execution was canceled."
-                        }
-                    }
-                    : new[]
-                    {
-                        new Error(HttpStatusCode.InternalServerError)
-                        {
-                            Title = "An unhandled error occurred while processing this request.",
-                            Detail = exception.Message
-                        }
-                    };
+            IReadOnlyList<Error> errors = exception is JsonApiException jsonApiException ? jsonApiException.Errors :
+                exception is OperationCanceledException ? new Error((HttpStatusCode)499)
+                {
+                    Title = "Request execution was canceled."
+                }.AsArray() : new Error(HttpStatusCode.InternalServerError)
+                {
+                    Title = "An unhandled error occurred while processing this request.",
+                    Detail = exception.Message
+                }.AsArray();
 
-            foreach (var error in errors)
+            foreach (Error error in errors)
             {
                 ApplyOptions(error, exception);
             }

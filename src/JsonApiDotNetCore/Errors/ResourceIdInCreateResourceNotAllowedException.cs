@@ -1,4 +1,5 @@
 using System.Net;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Serialization.Objects;
 
 namespace JsonApiDotNetCore.Errors
@@ -6,6 +7,7 @@ namespace JsonApiDotNetCore.Errors
     /// <summary>
     /// The error that is thrown when a resource creation request or operation is received that contains a client-generated ID.
     /// </summary>
+    [PublicAPI]
     public sealed class ResourceIdInCreateResourceNotAllowedException : JsonApiException
     {
         public ResourceIdInCreateResourceNotAllowedException(int? atomicOperationIndex = null)
@@ -16,9 +18,7 @@ namespace JsonApiDotNetCore.Errors
                     : "Specifying the resource ID in operations that create a resource is not allowed.",
                 Source =
                 {
-                    Pointer = atomicOperationIndex != null
-                        ? $"/atomic:operations[{atomicOperationIndex}]/data/id"
-                        : "/data/id"
+                    Pointer = atomicOperationIndex != null ? $"/atomic:operations[{atomicOperationIndex}]/data/id" : "/data/id"
                 }
             })
         {

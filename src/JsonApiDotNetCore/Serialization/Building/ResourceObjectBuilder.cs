@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
@@ -9,69 +9,90 @@ using Newtonsoft.Json;
 
 namespace JsonApiDotNetCore.Serialization.Building
 {
-    /// <inheritdoc /> 
+    /// <inheritdoc />
+    [PublicAPI]
     public class ResourceObjectBuilder : IResourceObjectBuilder
     {
-        protected IResourceContextProvider ResourceContextProvider { get; }
+        private static readonly CollectionConverter CollectionConverter = new CollectionConverter();
+
         private readonly ResourceObjectBuilderSettings _settings;
+        protected IResourceContextProvider ResourceContextProvider { get; }
 
         public ResourceObjectBuilder(IResourceContextProvider resourceContextProvider, ResourceObjectBuilderSettings settings)
         {
-            ResourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(settings, nameof(settings));
+
+            ResourceContextProvider = resourceContextProvider;
+            _settings = settings;
         }
 
-        /// <inheritdoc /> 
-        public virtual ResourceObject Build(IIdentifiable resource, IReadOnlyCollection<AttrAttribute> attributes = null, IReadOnlyCollection<RelationshipAttribute> relationships = null)
+        /// <inheritdoc />
+        public virtual ResourceObject Build(IIdentifiable resource, IReadOnlyCollection<AttrAttribute> attributes = null,
+            IReadOnlyCollection<RelationshipAttribute> relationships = null)
         {
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
-            var resourceContext = ResourceContextProvider.GetResourceContext(resource.GetType());
+            ResourceContext resourceContext = ResourceContextProvider.GetResourceContext(resource.GetType());
 
             // populating the top-level "type" and "id" members.
-            var resourceObject = new ResourceObject { Type = resourceContext.PublicName, Id = resource.StringId };
+            var resourceObject = new ResourceObject
+            {
+                Type = resourceContext.PublicName,
+                Id = resource.StringId
+            };
 
             // populating the top-level "attribute" member of a resource object. never include "id" as an attribute
-            if (attributes != null && (attributes = attributes.Where(attr => attr.Property.Name != nameof(Identifiable.Id)).ToArray()).Any())
-                ProcessAttributes(resource, attributes, resourceObject);
+            if (attributes != null)
+            {
+                AttrAttribute[] attributesWithoutId = attributes.Where(attr => attr.Property.Name != nameof(Identifiable.Id)).ToArray();
+
+                if (attributesWithoutId.Any())
+                {
+                    ProcessAttributes(resource, attributesWithoutId, resourceObject);
+                }
+            }
 
             // populating the top-level "relationship" member of a resource object.
             if (relationships != null)
+            {
                 ProcessRelationships(resource, relationships, resourceObject);
+            }
 
             return resourceObject;
         }
 
         /// <summary>
-        /// Builds the <see cref="RelationshipEntry"/> entries of the "relationships
-        /// objects". The default behavior is to just construct a resource linkage
-        /// with the "data" field populated with "single" or "many" data.
-        /// Depending on the requirements of the implementation (server or client serializer),
-        /// this may be overridden.
+        /// Builds the <see cref="RelationshipEntry" /> entries of the "relationships objects". The default behavior is to just construct a resource linkage with
+        /// the "data" field populated with "single" or "many" data. Depending on the requirements of the implementation (server or client serializer), this may
+        /// be overridden.
         /// </summary>
         protected virtual RelationshipEntry GetRelationshipData(RelationshipAttribute relationship, IIdentifiable resource)
         {
-            if (relationship == null) throw new ArgumentNullException(nameof(relationship));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(relationship, nameof(relationship));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
-            return new RelationshipEntry { Data = GetRelatedResourceLinkage(relationship, resource) };
+            return new RelationshipEntry
+            {
+                Data = GetRelatedResourceLinkage(relationship, resource)
+            };
         }
 
         /// <summary>
-        /// Gets the value for the <see cref="ExposableData{T}.Data"/> property.
+        /// Gets the value for the <see cref="ExposableData{T}.Data" /> property.
         /// </summary>
         protected object GetRelatedResourceLinkage(RelationshipAttribute relationship, IIdentifiable resource)
         {
-            if (relationship == null) throw new ArgumentNullException(nameof(relationship));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentGuard.NotNull(relationship, nameof(relationship));
+            ArgumentGuard.NotNull(resource, nameof(resource));
 
             return relationship is HasOneAttribute hasOne
-                ? (object) GetRelatedResourceLinkageForHasOne(hasOne, resource)
-                : GetRelatedResourceLinkageForHasMany((HasManyAttribute) relationship, resource);
+                ? (object)GetRelatedResourceLinkageForHasOne(hasOne, resource)
+                : GetRelatedResourceLinkageForHasMany((HasManyAttribute)relationship, resource);
         }
 
         /// <summary>
-        /// Builds a <see cref="ResourceIdentifierObject"/> for a HasOne relationship.
+        /// Builds a <see cref="ResourceIdentifierObject" /> for a HasOne relationship.
         /// </summary>
         private ResourceIdentifierObject GetRelatedResourceLinkageForHasOne(HasOneAttribute relationship, IIdentifiable resource)
         {
@@ -86,17 +107,18 @@ namespace JsonApiDotNetCore.Serialization.Building
         }
 
         /// <summary>
-        /// Builds the <see cref="ResourceIdentifierObject"/>s for a HasMany relationship.
+        /// Builds the <see cref="ResourceIdentifierObject" />s for a HasMany relationship.
         /// </summary>
-        private List<ResourceIdentifierObject> GetRelatedResourceLinkageForHasMany(HasManyAttribute relationship, IIdentifiable resource)
+        private IList<ResourceIdentifierObject> GetRelatedResourceLinkageForHasMany(HasManyAttribute relationship, IIdentifiable resource)
         {
-            var value = relationship.GetValue(resource);
-            var relatedResources = TypeHelper.ExtractResources(value);
-            
+            object value = relationship.GetValue(resource);
+            ICollection<IIdentifiable> relatedResources = CollectionConverter.ExtractResources(value);
+
             var manyData = new List<ResourceIdentifierObject>();
+
             if (relatedResources != null)
             {
-                foreach (var relatedResource in relatedResources)
+                foreach (IIdentifiable relatedResource in relatedResources)
                 {
                     manyData.Add(GetResourceIdentifier(relatedResource));
                 }
@@ -106,11 +128,12 @@ namespace JsonApiDotNetCore.Serialization.Building
         }
 
         /// <summary>
-        /// Creates a <see cref="ResourceIdentifierObject"/> from <paramref name="resource"/>.
+        /// Creates a <see cref="ResourceIdentifierObject" /> from <paramref name="resource" />.
         /// </summary>
         private ResourceIdentifierObject GetResourceIdentifier(IIdentifiable resource)
         {
-            var resourceName = ResourceContextProvider.GetResourceContext(resource.GetType()).PublicName;
+            string resourceName = ResourceContextProvider.GetResourceContext(resource.GetType()).PublicName;
+
             return new ResourceIdentifierObject
             {
                 Type = resourceName,
@@ -123,11 +146,14 @@ namespace JsonApiDotNetCore.Serialization.Building
         /// </summary>
         private void ProcessRelationships(IIdentifiable resource, IEnumerable<RelationshipAttribute> relationships, ResourceObject ro)
         {
-            foreach (var rel in relationships)
+            foreach (RelationshipAttribute rel in relationships)
             {
-                var relData = GetRelationshipData(rel, resource);
+                RelationshipEntry relData = GetRelationshipData(rel, resource);
+
                 if (relData != null)
+                {
                     (ro.Relationships ??= new Dictionary<string, RelationshipEntry>()).Add(rel.PublicName, relData);
+                }
             }
         }
 
@@ -137,7 +163,8 @@ namespace JsonApiDotNetCore.Serialization.Building
         private void ProcessAttributes(IIdentifiable resource, IEnumerable<AttrAttribute> attributes, ResourceObject ro)
         {
             ro.Attributes = new Dictionary<string, object>();
-            foreach (var attr in attributes)
+
+            foreach (AttrAttribute attr in attributes)
             {
                 object value = attr.GetValue(resource);
 
@@ -146,7 +173,8 @@ namespace JsonApiDotNetCore.Serialization.Building
                     return;
                 }
 
-                if (_settings.SerializerDefaultValueHandling == DefaultValueHandling.Ignore && Equals(value, TypeHelper.GetDefaultValue(attr.Property.PropertyType)))
+                if (_settings.SerializerDefaultValueHandling == DefaultValueHandling.Ignore &&
+                    Equals(value, RuntimeTypeConverter.GetDefaultValue(attr.Property.PropertyType)))
                 {
                     return;
                 }

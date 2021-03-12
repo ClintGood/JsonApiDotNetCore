@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
 using Microsoft.AspNetCore.Authentication;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceConstructorInjection
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class PostOffice : Identifiable
     {
         private readonly ISystemClock _systemClock;
@@ -28,7 +30,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceConstructorInje
 
         private bool IsWithinOperatingHours()
         {
-            var currentTime = _systemClock.UtcNow;
+            DateTimeOffset currentTime = _systemClock.UtcNow;
             return currentTime.DayOfWeek >= DayOfWeek.Monday && currentTime.DayOfWeek <= DayOfWeek.Friday && currentTime.Hour >= 9 && currentTime.Hour <= 17;
         }
     }

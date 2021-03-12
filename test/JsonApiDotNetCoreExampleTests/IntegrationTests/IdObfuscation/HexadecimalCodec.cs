@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
@@ -7,16 +8,16 @@ using JsonApiDotNetCore.Serialization.Objects;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.IdObfuscation
 {
-    internal static class HexadecimalCodec
+    internal sealed class HexadecimalCodec
     {
-        public static int Decode(string value)
+        public int Decode(string value)
         {
             if (value == null)
             {
                 return 0;
             }
 
-            if (!value.StartsWith("x"))
+            if (!value.StartsWith("x", StringComparison.Ordinal))
             {
                 throw new JsonApiException(new Error(HttpStatusCode.BadRequest)
                 {
@@ -31,19 +32,20 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.IdObfuscation
 
         private static string FromHexString(string hexString)
         {
-            List<byte> bytes = new List<byte>(hexString.Length / 2);
+            var bytes = new List<byte>(hexString.Length / 2);
+
             for (int index = 0; index < hexString.Length; index += 2)
             {
-                var hexChar = hexString.Substring(index, 2);
+                string hexChar = hexString.Substring(index, 2);
                 byte bt = byte.Parse(hexChar, NumberStyles.HexNumber);
                 bytes.Add(bt);
             }
 
-            var chars = Encoding.ASCII.GetChars(bytes.ToArray());
+            char[] chars = Encoding.ASCII.GetChars(bytes.ToArray());
             return new string(chars);
         }
 
-        public static string Encode(int value)
+        public string Encode(int value)
         {
             if (value == 0)
             {

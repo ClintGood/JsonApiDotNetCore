@@ -1,7 +1,11 @@
+using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+
+// @formatter:wrap_chained_method_calls chop_always
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class OperationsDbContext : DbContext
     {
         public DbSet<Playlist> Playlists { get; set; }
@@ -20,7 +24,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations
         protected override void OnModelCreating(ModelBuilder builder)
         {
             builder.Entity<PlaylistMusicTrack>()
-                .HasKey(playlistMusicTrack => new {playlistMusicTrack.PlaylistId, playlistMusicTrack.MusicTrackId});
+                .HasKey(playlistMusicTrack => new
+                {
+                    playlistMusicTrack.PlaylistId,
+                    playlistMusicTrack.MusicTrackId
+                });
 
             builder.Entity<MusicTrack>()
                 .HasOne(musicTrack => musicTrack.Lyric)

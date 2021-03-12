@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Errors;
 using JsonApiDotNetCore.Hooks.Internal.Execution;
@@ -10,13 +11,17 @@ using JsonApiDotNetCoreExample.Models;
 
 namespace JsonApiDotNetCoreExample.Definitions
 {
-    public class ArticleHooksDefinition : ResourceHooksDefinition<Article>
+    [UsedImplicitly(ImplicitUseKindFlags.InstantiatedNoFixedConstructorSignature)]
+    public sealed class ArticleHooksDefinition : ResourceHooksDefinition<Article>
     {
-        public ArticleHooksDefinition(IResourceGraph resourceGraph) : base(resourceGraph) { }
+        public ArticleHooksDefinition(IResourceGraph resourceGraph)
+            : base(resourceGraph)
+        {
+        }
 
         public override IEnumerable<Article> OnReturn(HashSet<Article> resources, ResourcePipeline pipeline)
         {
-            if (pipeline == ResourcePipeline.GetSingle && resources.Any(r => r.Caption == "Classified"))
+            if (pipeline == ResourcePipeline.GetSingle && resources.Any(article => article.Caption == "Classified"))
             {
                 throw new JsonApiException(new Error(HttpStatusCode.Forbidden)
                 {
@@ -24,8 +29,7 @@ namespace JsonApiDotNetCoreExample.Definitions
                 });
             }
 
-            return resources.Where(t => t.Caption != "This should not be included");
+            return resources.Where(article => article.Caption != "This should not be included").ToArray();
         }
     }
 }
-

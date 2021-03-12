@@ -1,4 +1,5 @@
 using FluentAssertions;
+using JsonApiDotNetCore;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Middleware;
 using JsonApiDotNetCore.Queries;
@@ -6,6 +7,7 @@ using JsonApiDotNetCore.QueryStrings;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
 using JsonApiDotNetCore.Serialization.Building;
+using JsonApiDotNetCore.Serialization.Objects;
 using Microsoft.AspNetCore.Http;
 using Xunit;
 
@@ -60,10 +62,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
                 TopLevelLinks = linksInResourceContext
             };
 
-            var resourceGraph = new ResourceGraph(new[]
-            {
-                exampleResourceContext
-            });
+            var resourceGraph = new ResourceGraph(exampleResourceContext.AsArray());
 
             var request = new JsonApiRequest
             {
@@ -91,7 +90,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
             var linkBuilder = new LinkBuilder(options, request, paginationContext, resourceGraph, queryStringAccessor);
 
             // Act
-            var topLevelLinks = linkBuilder.GetTopLevelLinks();
+            TopLevelLinks topLevelLinks = linkBuilder.GetTopLevelLinks();
 
             // Assert
             if (expected == LinkTypes.None)
@@ -162,10 +161,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
                 ResourceLinks = linksInResourceContext
             };
 
-            var resourceGraph = new ResourceGraph(new[]
-            {
-                exampleResourceContext
-            });
+            var resourceGraph = new ResourceGraph(exampleResourceContext.AsArray());
 
             var request = new JsonApiRequest();
 
@@ -181,7 +177,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
             var linkBuilder = new LinkBuilder(options, request, paginationContext, resourceGraph, queryStringAccessor);
 
             // Act
-            var resourceLinks = linkBuilder.GetResourceLinks(nameof(ExampleResource), "id");
+            ResourceLinks resourceLinks = linkBuilder.GetResourceLinks(nameof(ExampleResource), "id");
 
             // Assert
             if (expected == LinkTypes.Self)
@@ -320,7 +316,8 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
         [InlineData(LinkTypes.All, LinkTypes.All, LinkTypes.Self, LinkTypes.All)]
         [InlineData(LinkTypes.All, LinkTypes.All, LinkTypes.Related, LinkTypes.All)]
         [InlineData(LinkTypes.All, LinkTypes.All, LinkTypes.All, LinkTypes.All)]
-        public void Applies_cascading_settings_for_relationship_links(LinkTypes linksInRelationshipAttribute, LinkTypes linksInResourceContext, LinkTypes linksInOptions, LinkTypes expected)
+        public void Applies_cascading_settings_for_relationship_links(LinkTypes linksInRelationshipAttribute, LinkTypes linksInResourceContext,
+            LinkTypes linksInOptions, LinkTypes expected)
         {
             // Arrange
             var exampleResourceContext = new ResourceContext
@@ -330,10 +327,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
                 RelationshipLinks = linksInResourceContext
             };
 
-            var resourceGraph = new ResourceGraph(new[]
-            {
-                exampleResourceContext
-            });
+            var resourceGraph = new ResourceGraph(exampleResourceContext.AsArray());
 
             var request = new JsonApiRequest();
 
@@ -354,7 +348,7 @@ namespace JsonApiDotNetCoreExampleTests.UnitTests.Links
             };
 
             // Act
-            var relationshipLinks = linkBuilder.GetRelationshipLinks(relationship, new ExampleResource());
+            RelationshipLinks relationshipLinks = linkBuilder.GetRelationshipLinks(relationship, new ExampleResource());
 
             // Assert
             if (expected == LinkTypes.None)

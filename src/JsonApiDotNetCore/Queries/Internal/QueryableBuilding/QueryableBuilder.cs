@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Resources;
@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore.Metadata;
 namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 {
     /// <summary>
-    /// Drives conversion from <see cref="QueryLayer"/> into system <see cref="Expression"/> trees.
+    /// Drives conversion from <see cref="QueryLayer" /> into system <see cref="Expression" /> trees.
     /// </summary>
+    [PublicAPI]
     public class QueryableBuilder
     {
         private readonly Expression _source;
@@ -28,19 +29,27 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
             IResourceFactory resourceFactory, IResourceContextProvider resourceContextProvider, IModel entityModel,
             LambdaScopeFactory lambdaScopeFactory = null)
         {
-            _source = source ?? throw new ArgumentNullException(nameof(source));
-            _elementType = elementType ?? throw new ArgumentNullException(nameof(elementType));
-            _extensionType = extensionType ?? throw new ArgumentNullException(nameof(extensionType));
-            _nameFactory = nameFactory ?? throw new ArgumentNullException(nameof(nameFactory));
-            _resourceFactory = resourceFactory ?? throw new ArgumentNullException(nameof(resourceFactory));
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
-            _entityModel = entityModel ?? throw new ArgumentNullException(nameof(entityModel));
+            ArgumentGuard.NotNull(source, nameof(source));
+            ArgumentGuard.NotNull(elementType, nameof(elementType));
+            ArgumentGuard.NotNull(extensionType, nameof(extensionType));
+            ArgumentGuard.NotNull(nameFactory, nameof(nameFactory));
+            ArgumentGuard.NotNull(resourceFactory, nameof(resourceFactory));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
+            ArgumentGuard.NotNull(entityModel, nameof(entityModel));
+
+            _source = source;
+            _elementType = elementType;
+            _extensionType = extensionType;
+            _nameFactory = nameFactory;
+            _resourceFactory = resourceFactory;
+            _resourceContextProvider = resourceContextProvider;
+            _entityModel = entityModel;
             _lambdaScopeFactory = lambdaScopeFactory ?? new LambdaScopeFactory(_nameFactory);
         }
 
         public virtual Expression ApplyQuery(QueryLayer layer)
         {
-            if (layer == null) throw new ArgumentNullException(nameof(layer));
+            ArgumentGuard.NotNull(layer, nameof(layer));
 
             Expression expression = _source;
 
@@ -64,7 +73,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
                 expression = ApplyPagination(expression, layer.Pagination);
             }
 
-            if (layer.Projection != null && layer.Projection.Any())
+            if (!layer.Projection.IsNullOrEmpty())
             {
                 expression = ApplyProjection(expression, layer.Projection, layer.ResourceContext);
             }
@@ -74,7 +83,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
         protected virtual Expression ApplyInclude(Expression source, IncludeExpression include, ResourceContext resourceContext)
         {
-            using var lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
+            using LambdaScope lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
 
             var builder = new IncludeClauseBuilder(source, lambdaScope, resourceContext, _resourceContextProvider);
             return builder.ApplyInclude(include);
@@ -82,7 +91,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
         protected virtual Expression ApplyFilter(Expression source, FilterExpression filter)
         {
-            using var lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
+            using LambdaScope lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
 
             var builder = new WhereClauseBuilder(source, lambdaScope, _extensionType);
             return builder.ApplyWhere(filter);
@@ -90,7 +99,7 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
         protected virtual Expression ApplySort(Expression source, SortExpression sort)
         {
-            using var lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
+            using LambdaScope lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
 
             var builder = new OrderClauseBuilder(source, lambdaScope, _extensionType);
             return builder.ApplyOrderBy(sort);
@@ -98,15 +107,16 @@ namespace JsonApiDotNetCore.Queries.Internal.QueryableBuilding
 
         protected virtual Expression ApplyPagination(Expression source, PaginationExpression pagination)
         {
-            using var lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
+            using LambdaScope lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
 
             var builder = new SkipTakeClauseBuilder(source, lambdaScope, _extensionType);
             return builder.ApplySkipTake(pagination);
         }
 
-        protected virtual Expression ApplyProjection(Expression source, IDictionary<ResourceFieldAttribute, QueryLayer> projection, ResourceContext resourceContext)
+        protected virtual Expression ApplyProjection(Expression source, IDictionary<ResourceFieldAttribute, QueryLayer> projection,
+            ResourceContext resourceContext)
         {
-            using var lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
+            using LambdaScope lambdaScope = _lambdaScopeFactory.CreateScope(_elementType);
 
             var builder = new SelectClauseBuilder(source, lambdaScope, _entityModel, _extensionType, _nameFactory, _resourceFactory, _resourceContextProvider);
             return builder.ApplySelect(projection, resourceContext);

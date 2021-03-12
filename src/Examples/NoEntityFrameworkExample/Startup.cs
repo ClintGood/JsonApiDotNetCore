@@ -1,4 +1,5 @@
 using System;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Services;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +12,7 @@ using NoEntityFrameworkExample.Services;
 
 namespace NoEntityFrameworkExample
 {
-    public class Startup
+    public sealed class Startup
     {
         private readonly string _connectionString;
 
@@ -24,21 +25,18 @@ namespace NoEntityFrameworkExample
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddJsonApi(
-                options => options.Namespace = "api/v1",
-                resources: builder => builder.Add<WorkItem>("workItems")
-            );
+            services.AddJsonApi(options => options.Namespace = "api/v1", resources: builder => builder.Add<WorkItem>("workItems"));
 
             services.AddScoped<IResourceService<WorkItem>, WorkItemService>();
 
             services.AddDbContext<AppDbContext>(options =>
             {
-                options.UseNpgsql(_connectionString,
-                    postgresOptions => postgresOptions.SetPostgresVersion(new Version(9, 6)));
+                options.UseNpgsql(_connectionString, postgresOptions => postgresOptions.SetPostgresVersion(new Version(9, 6)));
             });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        [UsedImplicitly]
         public void Configure(IApplicationBuilder app, AppDbContext context)
         {
             context.Database.EnsureCreated();

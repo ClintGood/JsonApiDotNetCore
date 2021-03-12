@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,7 +11,7 @@ using MultiDbContextExample.Repositories;
 
 namespace MultiDbContextExample
 {
-    public class Startup
+    public sealed class Startup
     {
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -24,12 +25,16 @@ namespace MultiDbContextExample
             services.AddJsonApi(options =>
             {
                 options.IncludeExceptionStackTraceInErrors = true;
-            }, dbContextTypes: new[] {typeof(DbContextA), typeof(DbContextB)});
+            }, dbContextTypes: new[]
+            {
+                typeof(DbContextA),
+                typeof(DbContextB)
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbContextA dbContextA,
-            DbContextB dbContextB)
+        [UsedImplicitly]
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DbContextA dbContextA, DbContextB dbContextB)
         {
             if (env.IsDevelopment())
             {

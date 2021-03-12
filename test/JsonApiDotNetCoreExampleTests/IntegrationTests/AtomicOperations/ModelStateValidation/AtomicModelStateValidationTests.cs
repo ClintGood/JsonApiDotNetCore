@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization.Objects;
@@ -45,33 +46,35 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
 
             responseDocument.Errors.Should().HaveCount(2);
 
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[0].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[0].Detail.Should().Be("The Title field is required.");
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/title");
+            Error error1 = responseDocument.Errors[0];
+            error1.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error1.Title.Should().Be("Input validation failed.");
+            error1.Detail.Should().Be("The Title field is required.");
+            error1.Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/title");
 
-            responseDocument.Errors[1].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[1].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[1].Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
-            responseDocument.Errors[1].Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/lengthInSeconds");
+            Error error2 = responseDocument.Errors[1];
+            error2.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error2.Title.Should().Be("Input validation failed.");
+            error2.Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
+            error2.Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/lengthInSeconds");
         }
 
         [Fact]
         public async Task Can_create_resource_with_annotated_relationship()
         {
             // Arrange
-            var existingTrack = _fakers.MusicTrack.Generate();
-            var newPlaylistName = _fakers.Playlist.Generate().Name;
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
+            string newPlaylistName = _fakers.Playlist.Generate().Name;
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -112,24 +115,31 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, AtomicOperationsDocument responseDocument) =
+                await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             responseDocument.Results.Should().HaveCount(1);
 
-            var newPlaylistId = long.Parse(responseDocument.Results[0].SingleData.Id);
+            long newPlaylistId = long.Parse(responseDocument.Results[0].SingleData.Id);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var playlistInDatabase = await dbContext.Playlists
+                // @formatter:wrap_chained_method_calls chop_always
+                // @formatter:keep_existing_linebreaks true
+
+                Playlist playlistInDatabase = await dbContext.Playlists
                     .Include(playlist => playlist.PlaylistMusicTracks)
                     .ThenInclude(playlistMusicTrack => playlistMusicTrack.MusicTrack)
-                    .FirstAsync(playlist => playlist.Id == newPlaylistId);
+                    .FirstWithIdAsync(newPlaylistId);
+
+                // @formatter:keep_existing_linebreaks restore
+                // @formatter:wrap_chained_method_calls restore
 
                 playlistInDatabase.PlaylistMusicTracks.Should().HaveCount(1);
                 playlistInDatabase.PlaylistMusicTracks[0].MusicTrack.Id.Should().Be(existingTrack.Id);
@@ -140,7 +150,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
         public async Task Cannot_update_resource_with_multiple_violations()
         {
             // Arrange
-            var existingTrack = _fakers.MusicTrack.Generate();
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -161,7 +171,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                             id = existingTrack.StringId,
                             attributes = new
                             {
-                                title = (string) null,
+                                title = (string)null,
                                 lengthInSeconds = -1
                             }
                         }
@@ -169,33 +179,35 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
 
             responseDocument.Errors.Should().HaveCount(2);
 
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[0].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[0].Detail.Should().Be("The Title field is required.");
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/title");
+            Error error1 = responseDocument.Errors[0];
+            error1.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error1.Title.Should().Be("Input validation failed.");
+            error1.Detail.Should().Be("The Title field is required.");
+            error1.Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/title");
 
-            responseDocument.Errors[1].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[1].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[1].Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
-            responseDocument.Errors[1].Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/lengthInSeconds");
+            Error error2 = responseDocument.Errors[1];
+            error2.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error2.Title.Should().Be("Input validation failed.");
+            error2.Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
+            error2.Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/lengthInSeconds");
         }
 
         [Fact]
         public async Task Can_update_resource_with_omitted_required_attribute()
         {
             // Arrange
-            var existingTrack = _fakers.MusicTrack.Generate();
-            var newTrackGenre = _fakers.MusicTrack.Generate().Genre;
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
+            string newTrackGenre = _fakers.MusicTrack.Generate().Genre;
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -223,10 +235,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -235,8 +247,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var trackInDatabase = await dbContext.MusicTracks
-                    .FirstAsync(musicTrack => musicTrack.Id == existingTrack.Id);
+                MusicTrack trackInDatabase = await dbContext.MusicTracks.FirstWithIdAsync(existingTrack.Id);
 
                 trackInDatabase.Title.Should().Be(existingTrack.Title);
                 trackInDatabase.Genre.Should().Be(newTrackGenre);
@@ -247,8 +258,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
         public async Task Can_update_resource_with_annotated_relationship()
         {
             // Arrange
-            var existingPlaylist = _fakers.Playlist.Generate();
-            var existingTrack = _fakers.MusicTrack.Generate();
+            Playlist existingPlaylist = _fakers.Playlist.Generate();
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -286,10 +297,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -298,10 +309,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var playlistInDatabase = await dbContext.Playlists
+                // @formatter:wrap_chained_method_calls chop_always
+                // @formatter:keep_existing_linebreaks true
+
+                Playlist playlistInDatabase = await dbContext.Playlists
                     .Include(playlist => playlist.PlaylistMusicTracks)
                     .ThenInclude(playlistMusicTrack => playlistMusicTrack.MusicTrack)
-                    .FirstAsync(playlist => playlist.Id == existingPlaylist.Id);
+                    .FirstWithIdAsync(existingPlaylist.Id);
+
+                // @formatter:keep_existing_linebreaks restore
+                // @formatter:wrap_chained_method_calls restore
 
                 playlistInDatabase.PlaylistMusicTracks.Should().HaveCount(1);
                 playlistInDatabase.PlaylistMusicTracks[0].MusicTrack.Id.Should().Be(existingTrack.Id);
@@ -312,8 +329,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
         public async Task Can_update_ToOne_relationship()
         {
             // Arrange
-            var existingTrack = _fakers.MusicTrack.Generate();
-            var existingCompany = _fakers.RecordCompany.Generate();
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
+            RecordCompany existingCompany = _fakers.RecordCompany.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -343,10 +360,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -355,9 +372,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var trackInDatabase = await dbContext.MusicTracks
-                    .Include(musicTrack => musicTrack.OwnedBy)
-                    .FirstAsync(musicTrack => musicTrack.Id == existingTrack.Id);
+                MusicTrack trackInDatabase = await dbContext.MusicTracks.Include(musicTrack => musicTrack.OwnedBy).FirstWithIdAsync(existingTrack.Id);
 
                 trackInDatabase.OwnedBy.Should().NotBeNull();
                 trackInDatabase.OwnedBy.Id.Should().Be(existingCompany.Id);
@@ -368,8 +383,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
         public async Task Can_update_ToMany_relationship()
         {
             // Arrange
-            var existingPlaylist = _fakers.Playlist.Generate();
-            var existingTrack = _fakers.MusicTrack.Generate();
+            Playlist existingPlaylist = _fakers.Playlist.Generate();
+            MusicTrack existingTrack = _fakers.MusicTrack.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -402,10 +417,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -414,10 +429,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var playlistInDatabase = await dbContext.Playlists
+                // @formatter:wrap_chained_method_calls chop_always
+                // @formatter:keep_existing_linebreaks true
+
+                Playlist playlistInDatabase = await dbContext.Playlists
                     .Include(playlist => playlist.PlaylistMusicTracks)
                     .ThenInclude(playlistMusicTrack => playlistMusicTrack.MusicTrack)
-                    .FirstAsync(playlist => playlist.Id == existingPlaylist.Id);
+                    .FirstWithIdAsync(existingPlaylist.Id);
+
+                // @formatter:keep_existing_linebreaks restore
+                // @formatter:wrap_chained_method_calls restore
 
                 playlistInDatabase.PlaylistMusicTracks.Should().HaveCount(1);
                 playlistInDatabase.PlaylistMusicTracks[0].MusicTrack.Id.Should().Be(existingTrack.Id);
@@ -441,7 +462,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                             id = 99999999,
                             attributes = new
                             {
-                                name = (string) null
+                                name = (string)null
                             }
                         }
                     },
@@ -460,30 +481,33 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.ModelS
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
 
             responseDocument.Errors.Should().HaveCount(3);
 
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[0].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[0].Detail.Should().Be("The Name field is required.");
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/name");
+            Error error1 = responseDocument.Errors[0];
+            error1.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error1.Title.Should().Be("Input validation failed.");
+            error1.Detail.Should().Be("The Name field is required.");
+            error1.Source.Pointer.Should().Be("/atomic:operations[0]/data/attributes/name");
 
-            responseDocument.Errors[1].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[1].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[1].Detail.Should().Be("The Title field is required.");
-            responseDocument.Errors[1].Source.Pointer.Should().Be("/atomic:operations[1]/data/attributes/title");
+            Error error2 = responseDocument.Errors[1];
+            error2.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error2.Title.Should().Be("Input validation failed.");
+            error2.Detail.Should().Be("The Title field is required.");
+            error2.Source.Pointer.Should().Be("/atomic:operations[1]/data/attributes/title");
 
-            responseDocument.Errors[2].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[2].Title.Should().Be("Input validation failed.");
-            responseDocument.Errors[2].Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
-            responseDocument.Errors[2].Source.Pointer.Should().Be("/atomic:operations[1]/data/attributes/lengthInSeconds");
+            Error error3 = responseDocument.Errors[2];
+            error3.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error3.Title.Should().Be("Input validation failed.");
+            error3.Detail.Should().Be("The field LengthInSeconds must be between 1 and 1440.");
+            error3.Source.Pointer.Should().Be("/atomic:operations[1]/data/attributes/lengthInSeconds");
         }
     }
 }

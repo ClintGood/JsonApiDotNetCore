@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
@@ -13,8 +14,7 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 {
-    public sealed class CompositeKeyTests 
-        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext>>
+    public sealed class CompositeKeyTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext>>
     {
         private readonly ExampleIntegrationTestContext<TestableStartup<CompositeDbContext>, CompositeDbContext> _testContext;
 
@@ -27,7 +27,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 services.AddResourceRepository<CarRepository>();
             });
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.AllowClientGeneratedIds = true;
         }
 
@@ -48,10 +48,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars?filter=any(id,'123:AA-BB-11','999:XX-YY-22')";
+            const string route = "/cars?filter=any(id,'123:AA-BB-11','999:XX-YY-22')";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -77,10 +77,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars/" + car.StringId;
+            string route = "/cars/" + car.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -106,10 +106,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars?sort=id";
+            const string route = "/cars?sort=id";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -135,10 +135,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars?fields[cars]=id";
+            const string route = "/cars?fields[cars]=id";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -169,10 +169,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 }
             };
 
-            var route = "/cars";
+            const string route = "/cars";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -181,8 +181,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var carInDatabase = await dbContext.Cars
-                    .FirstOrDefaultAsync(car => car.RegionId == 123 && car.LicensePlate == "AA-BB-11");
+                Car carInDatabase = await dbContext.Cars.FirstOrDefaultAsync(car => car.RegionId == 123 && car.LicensePlate == "AA-BB-11");
 
                 carInDatabase.Should().NotBeNull();
                 carInDatabase.Id.Should().Be("123:AA-BB-11");
@@ -231,10 +230,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 }
             };
 
-            var route = "/engines/" + existingEngine.StringId;
+            string route = "/engines/" + existingEngine.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -243,9 +242,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var engineInDatabase = await dbContext.Engines
-                    .Include(engine => engine.Car)
-                    .FirstAsync(engine => engine.Id == existingEngine.Id);
+                Engine engineInDatabase = await dbContext.Engines.Include(engine => engine.Car).FirstWithIdAsync(existingEngine.Id);
 
                 engineInDatabase.Car.Should().NotBeNull();
                 engineInDatabase.Car.Id.Should().Be(existingCar.StringId);
@@ -283,16 +280,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                     {
                         car = new
                         {
-                            data = (object) null
+                            data = (object)null
                         }
                     }
                 }
             };
 
-            var route = "/engines/" + existingEngine.StringId;
+            string route = "/engines/" + existingEngine.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -301,9 +298,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var engineInDatabase = await dbContext.Engines
-                    .Include(engine => engine.Car)
-                    .FirstAsync(engine => engine.Id == existingEngine.Id);
+                Engine engineInDatabase = await dbContext.Engines.Include(engine => engine.Car).FirstWithIdAsync(existingEngine.Id);
 
                 engineInDatabase.Car.Should().BeNull();
             });
@@ -350,10 +345,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 }
             };
 
-            var route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
+            string route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteDeleteAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteDeleteAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -362,9 +357,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var dealershipInDatabase = await dbContext.Dealerships
-                    .Include(dealership => dealership.Inventory)
-                    .FirstOrDefaultAsync(dealership => dealership.Id == existingDealership.Id);
+                Dealership dealershipInDatabase = await dbContext.Dealerships
+                    .Include(dealership => dealership.Inventory).FirstWithIdOrDefaultAsync(existingDealership.Id);
 
                 dealershipInDatabase.Inventory.Should().HaveCount(1);
                 dealershipInDatabase.Inventory.Should().ContainSingle(car => car.Id == existingDealership.Inventory.ElementAt(1).Id);
@@ -379,6 +373,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
             {
                 Address = "Dam 1, 1012JS Amsterdam, the Netherlands"
             };
+
             var existingCar = new Car
             {
                 RegionId = 123,
@@ -404,10 +399,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 }
             };
 
-            var route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
+            string route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -416,9 +411,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var dealershipInDatabase = await dbContext.Dealerships
-                    .Include(dealership => dealership.Inventory)
-                    .FirstOrDefaultAsync(dealership => dealership.Id == existingDealership.Id);
+                Dealership dealershipInDatabase = await dbContext.Dealerships
+                    .Include(dealership => dealership.Inventory).FirstWithIdOrDefaultAsync(existingDealership.Id);
 
                 dealershipInDatabase.Inventory.Should().HaveCount(1);
                 dealershipInDatabase.Inventory.Should().ContainSingle(car => car.Id == existingCar.Id);
@@ -446,6 +440,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                     }
                 }
             };
+
             var existingCar = new Car
             {
                 RegionId = 789,
@@ -473,14 +468,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                         type = "cars",
                         id = "789:EE-FF-33"
                     }
-
                 }
             };
 
-            var route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
+            string route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePatchAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -489,9 +483,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var dealershipInDatabase = await dbContext.Dealerships
-                    .Include(dealership => dealership.Inventory)
-                    .FirstOrDefaultAsync(dealership => dealership.Id == existingDealership.Id);
+                Dealership dealershipInDatabase = await dbContext.Dealerships
+                    .Include(dealership => dealership.Inventory).FirstWithIdOrDefaultAsync(existingDealership.Id);
 
                 dealershipInDatabase.Inventory.Should().HaveCount(2);
                 dealershipInDatabase.Inventory.Should().ContainSingle(car => car.Id == existingCar.Id);
@@ -527,18 +520,20 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 }
             };
 
-            var route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
+            string route = $"/dealerships/{existingDealership.StringId}/relationships/inventory";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NotFound);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.NotFound);
-            responseDocument.Errors[0].Title.Should().Be("A related resource does not exist.");
-            responseDocument.Errors[0].Detail.Should().Be("Related resource of type 'cars' with ID '999:XX-YY-22' in relationship 'inventory' does not exist.");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            error.Title.Should().Be("A related resource does not exist.");
+            error.Detail.Should().Be("Related resource of type 'cars' with ID '999:XX-YY-22' in relationship 'inventory' does not exist.");
         }
 
         [Fact]
@@ -558,10 +553,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/cars/" + existingCar.StringId;
+            string route = "/cars/" + existingCar.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteDeleteAsync<string>(route);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteDeleteAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -570,8 +565,8 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var carInDatabase = await dbContext.Cars
-                    .FirstOrDefaultAsync(car => car.RegionId == existingCar.RegionId && car.LicensePlate == existingCar.LicensePlate);
+                Car carInDatabase =
+                    await dbContext.Cars.FirstOrDefaultAsync(car => car.RegionId == existingCar.RegionId && car.LicensePlate == existingCar.LicensePlate);
 
                 carInDatabase.Should().BeNull();
             });

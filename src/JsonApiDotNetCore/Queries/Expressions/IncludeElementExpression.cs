@@ -2,13 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
 {
     /// <summary>
-    /// Represents an element in <see cref="IncludeExpression"/>.
+    /// Represents an element in <see cref="IncludeExpression" />.
     /// </summary>
+    [PublicAPI]
     public class IncludeElementExpression : QueryExpression
     {
         public RelationshipAttribute Relationship { get; }
@@ -21,8 +23,11 @@ namespace JsonApiDotNetCore.Queries.Expressions
 
         public IncludeElementExpression(RelationshipAttribute relationship, IReadOnlyCollection<IncludeElementExpression> children)
         {
-            Relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
-            Children = children ?? throw new ArgumentNullException(nameof(children));
+            ArgumentGuard.NotNull(relationship, nameof(relationship));
+            ArgumentGuard.NotNull(children, nameof(children));
+
+            Relationship = relationship;
+            Children = children;
         }
 
         public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
@@ -41,7 +46,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 builder.Append(string.Join(",", Children.Select(child => child.ToString())));
                 builder.Append('}');
             }
-            
+
             return builder.ToString();
         }
 
@@ -57,7 +62,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (IncludeElementExpression) obj;
+            var other = (IncludeElementExpression)obj;
 
             return Relationship.Equals(other.Relationship) == Children.SequenceEqual(other.Children);
         }
@@ -67,7 +72,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
             var hashCode = new HashCode();
             hashCode.Add(Relationship);
 
-            foreach (var child in Children)
+            foreach (IncludeElementExpression child in Children)
             {
                 hashCode.Add(child);
             }

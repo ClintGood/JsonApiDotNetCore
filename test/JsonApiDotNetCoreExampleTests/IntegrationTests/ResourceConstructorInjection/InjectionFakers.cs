@@ -1,7 +1,11 @@
 using System;
 using Bogus;
+using JsonApiDotNetCore;
 using Microsoft.Extensions.DependencyInjection;
 using TestBuildingBlocks;
+
+// @formatter:wrap_chained_method_calls chop_always
+// @formatter:keep_existing_linebreaks true
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceConstructorInjection
 {
@@ -17,24 +21,26 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceConstructorInje
 
         public InjectionFakers(IServiceProvider serviceProvider)
         {
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentGuard.NotNull(serviceProvider, nameof(serviceProvider));
+
+            _serviceProvider = serviceProvider;
 
             _lazyPostOfficeFaker = new Lazy<Faker<PostOffice>>(() =>
                 new Faker<PostOffice>()
                     .UseSeed(GetFakerSeed())
-                    .CustomInstantiator(f => new PostOffice(ResolveDbContext()))
-                    .RuleFor(postOffice => postOffice.Address, f => f.Address.FullAddress()));
+                    .CustomInstantiator(_ => new PostOffice(ResolveDbContext()))
+                    .RuleFor(postOffice => postOffice.Address, faker => faker.Address.FullAddress()));
 
             _lazyGiftCertificateFaker = new Lazy<Faker<GiftCertificate>>(() =>
                 new Faker<GiftCertificate>()
                     .UseSeed(GetFakerSeed())
-                    .CustomInstantiator(f => new GiftCertificate(ResolveDbContext()))
-                    .RuleFor(giftCertificate => giftCertificate.IssueDate, f => f.Date.PastOffset()));
+                    .CustomInstantiator(_ => new GiftCertificate(ResolveDbContext()))
+                    .RuleFor(giftCertificate => giftCertificate.IssueDate, faker => faker.Date.PastOffset()));
         }
 
         private InjectionDbContext ResolveDbContext()
         {
-            using var scope = _serviceProvider.CreateScope();
+            using IServiceScope scope = _serviceProvider.CreateScope();
             return scope.ServiceProvider.GetRequiredService<InjectionDbContext>();
         }
     }

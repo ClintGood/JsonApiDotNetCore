@@ -17,18 +17,23 @@ namespace UnitTests.Serialization.Server
         private readonly RequestDeserializer _deserializer;
         private readonly Mock<ITargetedFields> _fieldsManagerMock = new Mock<ITargetedFields>();
         private readonly Mock<IJsonApiRequest> _requestMock = new Mock<IJsonApiRequest>();
+
         public RequestDeserializerTests()
         {
-            _deserializer = new RequestDeserializer(_resourceGraph, new ResourceFactory(new ServiceContainer()), _fieldsManagerMock.Object, _mockHttpContextAccessor.Object, _requestMock.Object, new JsonApiOptions());
+            _deserializer = new RequestDeserializer(ResourceGraph, new ResourceFactory(new ServiceContainer()), _fieldsManagerMock.Object,
+                MockHttpContextAccessor.Object, _requestMock.Object, new JsonApiOptions());
         }
 
         [Fact]
         public void DeserializeAttributes_VariousUpdatedMembers_RegistersTargetedFields()
         {
             // Arrange
-            SetupFieldsManager(out HashSet<AttrAttribute> attributesToUpdate, out HashSet<RelationshipAttribute> relationshipsToUpdate);
+            var attributesToUpdate = new HashSet<AttrAttribute>();
+            var relationshipsToUpdate = new HashSet<RelationshipAttribute>();
+            SetupFieldsManager(attributesToUpdate, relationshipsToUpdate);
+
             Document content = CreateTestResourceDocument();
-            var body = JsonConvert.SerializeObject(content);
+            string body = JsonConvert.SerializeObject(content);
 
             // Act
             _deserializer.Deserialize(body);
@@ -42,13 +47,16 @@ namespace UnitTests.Serialization.Server
         public void DeserializeRelationships_MultipleDependentRelationships_RegistersUpdatedRelationships()
         {
             // Arrange
-            SetupFieldsManager(out HashSet<AttrAttribute> attributesToUpdate, out HashSet<RelationshipAttribute> relationshipsToUpdate);
-            var content = CreateDocumentWithRelationships("multiPrincipals");
+            var attributesToUpdate = new HashSet<AttrAttribute>();
+            var relationshipsToUpdate = new HashSet<RelationshipAttribute>();
+            SetupFieldsManager(attributesToUpdate, relationshipsToUpdate);
+
+            Document content = CreateDocumentWithRelationships("multiPrincipals");
             content.SingleData.Relationships.Add("populatedToOne", CreateRelationshipData("oneToOneDependents"));
             content.SingleData.Relationships.Add("emptyToOne", CreateRelationshipData());
-            content.SingleData.Relationships.Add("populatedToManies", CreateRelationshipData("oneToManyDependents", isToManyData: true));
+            content.SingleData.Relationships.Add("populatedToManies", CreateRelationshipData("oneToManyDependents", true));
             content.SingleData.Relationships.Add("emptyToManies", CreateRelationshipData(isToManyData: true));
-            var body = JsonConvert.SerializeObject(content);
+            string body = JsonConvert.SerializeObject(content);
 
             // Act
             _deserializer.Deserialize(body);
@@ -62,13 +70,16 @@ namespace UnitTests.Serialization.Server
         public void DeserializeRelationships_MultiplePrincipalRelationships_RegistersUpdatedRelationships()
         {
             // Arrange
-            SetupFieldsManager(out HashSet<AttrAttribute> attributesToUpdate, out HashSet<RelationshipAttribute> relationshipsToUpdate);
-            var content = CreateDocumentWithRelationships("multiDependents");
+            var attributesToUpdate = new HashSet<AttrAttribute>();
+            var relationshipsToUpdate = new HashSet<RelationshipAttribute>();
+            SetupFieldsManager(attributesToUpdate, relationshipsToUpdate);
+
+            Document content = CreateDocumentWithRelationships("multiDependents");
             content.SingleData.Relationships.Add("populatedToOne", CreateRelationshipData("oneToOnePrincipals"));
             content.SingleData.Relationships.Add("emptyToOne", CreateRelationshipData());
             content.SingleData.Relationships.Add("populatedToMany", CreateRelationshipData("oneToManyPrincipals"));
             content.SingleData.Relationships.Add("emptyToMany", CreateRelationshipData());
-            var body = JsonConvert.SerializeObject(content);
+            string body = JsonConvert.SerializeObject(content);
 
             // Act
             _deserializer.Deserialize(body);
@@ -78,12 +89,10 @@ namespace UnitTests.Serialization.Server
             Assert.Empty(attributesToUpdate);
         }
 
-        private void SetupFieldsManager(out HashSet<AttrAttribute> attributesToUpdate, out HashSet<RelationshipAttribute> relationshipsToUpdate)
+        private void SetupFieldsManager(HashSet<AttrAttribute> attributesToUpdate, HashSet<RelationshipAttribute> relationshipsToUpdate)
         {
-            attributesToUpdate = new HashSet<AttrAttribute>();
-            relationshipsToUpdate = new HashSet<RelationshipAttribute>();
-            _fieldsManagerMock.Setup(m => m.Attributes).Returns(attributesToUpdate);
-            _fieldsManagerMock.Setup(m => m.Relationships).Returns(relationshipsToUpdate);
+            _fieldsManagerMock.Setup(fields => fields.Attributes).Returns(attributesToUpdate);
+            _fieldsManagerMock.Setup(fields => fields.Relationships).Returns(relationshipsToUpdate);
         }
     }
 }

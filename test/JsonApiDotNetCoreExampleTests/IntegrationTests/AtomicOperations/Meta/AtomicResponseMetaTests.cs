@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Serialization;
@@ -13,8 +14,7 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
 {
-    public sealed class AtomicResponseMetaTests
-        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext>>
+    public sealed class AtomicResponseMetaTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext>>
     {
         private readonly ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext> _testContext;
         private readonly OperationsFakers _fakers = new OperationsFakers();
@@ -53,10 +53,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, AtomicOperationsDocument responseDocument) =
+                await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -65,7 +66,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
             responseDocument.Meta["license"].Should().Be("MIT");
             responseDocument.Meta["projectUrl"].Should().Be("https://github.com/json-api-dotnet/JsonApiDotNetCore/");
 
-            var versionArray = ((IEnumerable<JToken>) responseDocument.Meta["versions"]).Select(token => token.ToString()).ToArray();
+            string[] versionArray = ((IEnumerable<JToken>)responseDocument.Meta["versions"]).Select(token => token.ToString()).ToArray();
 
             versionArray.Should().HaveCount(4);
             versionArray.Should().Contain("v4.0.0");
@@ -78,7 +79,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
         public async Task Returns_top_level_meta_in_update_resource_with_side_effects()
         {
             // Arrange
-            var existingLanguage = _fakers.TextLanguage.Generate();
+            TextLanguage existingLanguage = _fakers.TextLanguage.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -105,10 +106,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, AtomicOperationsDocument responseDocument) =
+                await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -117,32 +119,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Meta
             responseDocument.Meta["license"].Should().Be("MIT");
             responseDocument.Meta["projectUrl"].Should().Be("https://github.com/json-api-dotnet/JsonApiDotNetCore/");
 
-            var versionArray = ((IEnumerable<JToken>) responseDocument.Meta["versions"]).Select(token => token.ToString()).ToArray();
+            string[] versionArray = ((IEnumerable<JToken>)responseDocument.Meta["versions"]).Select(token => token.ToString()).ToArray();
 
             versionArray.Should().HaveCount(4);
             versionArray.Should().Contain("v4.0.0");
             versionArray.Should().Contain("v3.1.0");
             versionArray.Should().Contain("v2.5.2");
             versionArray.Should().Contain("v1.3.1");
-        }
-    }
-
-    public sealed class AtomicResponseMeta : IResponseMeta
-    {
-        public IReadOnlyDictionary<string, object> GetMeta()
-        {
-            return new Dictionary<string, object>
-            {
-                ["license"] = "MIT",
-                ["projectUrl"] = "https://github.com/json-api-dotnet/JsonApiDotNetCore/",
-                ["versions"] = new[]
-                {
-                    "v4.0.0",
-                    "v3.1.0",
-                    "v2.5.2",
-                    "v1.3.1"
-                }
-            };
         }
     }
 }

@@ -1,11 +1,11 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Serialization.Objects;
 using JsonApiDotNetCoreExampleTests.Startups;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TestBuildingBlocks;
 using Xunit;
@@ -18,13 +18,14 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
         private readonly ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext> _testContext;
         private readonly OperationsFakers _fakers = new OperationsFakers();
 
-        public AtomicCreateResourceWithClientGeneratedIdTests(ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext> testContext)
+        public AtomicCreateResourceWithClientGeneratedIdTests(
+            ExampleIntegrationTestContext<TestableStartup<OperationsDbContext>, OperationsDbContext> testContext)
         {
             _testContext = testContext;
 
             testContext.ConfigureServicesAfterStartup(services => services.AddControllersFromExampleProject());
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.AllowClientGeneratedIds = true;
         }
 
@@ -32,7 +33,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
         public async Task Can_create_resource_with_client_generated_guid_ID_having_side_effects()
         {
             // Arrange
-            var newLanguage = _fakers.TextLanguage.Generate();
+            TextLanguage newLanguage = _fakers.TextLanguage.Generate();
             newLanguage.Id = Guid.NewGuid();
 
             var requestBody = new
@@ -55,10 +56,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, AtomicOperationsDocument responseDocument) =
+                await _testContext.ExecutePostAtomicAsync<AtomicOperationsDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -72,8 +74,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var languageInDatabase = await dbContext.TextLanguages
-                    .FirstAsync(language => language.Id == newLanguage.Id);
+                TextLanguage languageInDatabase = await dbContext.TextLanguages.FirstWithIdAsync(newLanguage.Id);
 
                 languageInDatabase.IsoCode.Should().Be(newLanguage.IsoCode);
             });
@@ -83,7 +84,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
         public async Task Can_create_resource_with_client_generated_string_ID_having_no_side_effects()
         {
             // Arrange
-            var newTrack = _fakers.MusicTrack.Generate();
+            MusicTrack newTrack = _fakers.MusicTrack.Generate();
             newTrack.Id = Guid.NewGuid();
 
             var requestBody = new
@@ -107,10 +108,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAtomicAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.NoContent);
@@ -119,11 +120,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var trackInDatabase = await dbContext.MusicTracks
-                    .FirstAsync(musicTrack => musicTrack.Id == newTrack.Id);
+                MusicTrack trackInDatabase = await dbContext.MusicTracks.FirstWithIdAsync(newTrack.Id);
 
                 trackInDatabase.Title.Should().Be(newTrack.Title);
-                trackInDatabase.LengthInSeconds.Should().BeApproximately(newTrack.LengthInSeconds, 0.00000000001M);
+                trackInDatabase.LengthInSeconds.Should().BeApproximately(newTrack.LengthInSeconds);
             });
         }
 
@@ -131,16 +131,15 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
         public async Task Cannot_create_resource_for_existing_client_generated_ID()
         {
             // Arrange
-            var existingLanguage = _fakers.TextLanguage.Generate();
+            TextLanguage existingLanguage = _fakers.TextLanguage.Generate();
             existingLanguage.Id = Guid.NewGuid();
 
-            var languageToCreate = _fakers.TextLanguage.Generate();
+            TextLanguage languageToCreate = _fakers.TextLanguage.Generate();
             languageToCreate.Id = existingLanguage.Id;
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
                 dbContext.TextLanguages.Add(languageToCreate);
-
                 await dbContext.SaveChangesAsync();
             });
 
@@ -164,26 +163,28 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Conflict);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Conflict);
-            responseDocument.Errors[0].Title.Should().Be("Another resource with the specified ID already exists.");
-            responseDocument.Errors[0].Detail.Should().Be($"Another resource of type 'textLanguages' with ID '{languageToCreate.StringId}' already exists.");
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            error.Title.Should().Be("Another resource with the specified ID already exists.");
+            error.Detail.Should().Be($"Another resource of type 'textLanguages' with ID '{languageToCreate.StringId}' already exists.");
+            error.Source.Pointer.Should().Be("/atomic:operations[0]");
         }
 
         [Fact]
         public async Task Cannot_create_resource_for_incompatible_ID()
         {
             // Arrange
-            var guid = Guid.NewGuid().ToString();
+            string guid = Guid.NewGuid().ToString();
 
             var requestBody = new
             {
@@ -204,19 +205,21 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[0].Title.Should().Be("Failed to deserialize request body.");
-            responseDocument.Errors[0].Detail.Should().Be($"Failed to convert '{guid}' of type 'String' to type 'Int32'.");
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error.Title.Should().Be("Failed to deserialize request body.");
+            error.Detail.Should().Be($"Failed to convert '{guid}' of type 'String' to type 'Int32'.");
+            error.Source.Pointer.Should().Be("/atomic:operations[0]");
         }
 
         [Fact]
@@ -240,19 +243,21 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Creati
                 }
             };
 
-            var route = "/operations";
+            const string route = "/operations";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAtomicAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-            responseDocument.Errors[0].Title.Should().Be("Failed to deserialize request body: The 'data.id' or 'data.lid' element is required.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
-            responseDocument.Errors[0].Source.Pointer.Should().Be("/atomic:operations[0]");
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            error.Title.Should().Be("Failed to deserialize request body: The 'data.id' or 'data.lid' element is required.");
+            error.Detail.Should().BeNull();
+            error.Source.Pointer.Should().Be("/atomic:operations[0]");
         }
     }
 }

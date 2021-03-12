@@ -1,12 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using JsonApiDotNetCore.Resources.Annotations;
 using JsonApiDotNetCore.Serialization.Building;
 using JsonApiDotNetCore.Serialization.Objects;
 using UnitTests.TestModels;
 using Xunit;
 
-namespace UnitTests.Serialization.Serializer
+namespace UnitTests.Serialization.Common
 {
     public sealed class ResourceObjectBuilderTests : SerializerTestsSetup
     {
@@ -14,7 +15,7 @@ namespace UnitTests.Serialization.Serializer
 
         public ResourceObjectBuilderTests()
         {
-            _builder = new ResourceObjectBuilder(_resourceGraph, new ResourceObjectBuilderSettings());
+            _builder = new ResourceObjectBuilder(ResourceGraph, new ResourceObjectBuilderSettings());
         }
 
         [Fact]
@@ -24,7 +25,7 @@ namespace UnitTests.Serialization.Serializer
             var resource = new TestResource();
 
             // Act
-            var resourceObject = _builder.Build(resource);
+            ResourceObject resourceObject = _builder.Build(resource);
 
             // Assert
             Assert.Null(resourceObject.Attributes);
@@ -37,10 +38,13 @@ namespace UnitTests.Serialization.Serializer
         public void ResourceToResourceObject_ResourceWithId_CanBuild()
         {
             // Arrange
-            var resource = new TestResource { Id = 1 };
+            var resource = new TestResource
+            {
+                Id = 1
+            };
 
             // Act
-            var resourceObject = _builder.Build(resource);
+            ResourceObject resourceObject = _builder.Build(resource);
 
             // Assert
             Assert.Equal("1", resourceObject.Id);
@@ -55,11 +59,20 @@ namespace UnitTests.Serialization.Serializer
         public void ResourceToResourceObject_ResourceWithIncludedAttrs_CanBuild(string stringFieldValue, int? intFieldValue)
         {
             // Arrange
-            var resource = new TestResource { StringField = stringFieldValue, NullableIntField = intFieldValue };
-            var attrs = _resourceGraph.GetAttributes<TestResource>(tr => new { tr.StringField, tr.NullableIntField });
+            var resource = new TestResource
+            {
+                StringField = stringFieldValue,
+                NullableIntField = intFieldValue
+            };
+
+            IReadOnlyCollection<AttrAttribute> attrs = ResourceGraph.GetAttributes<TestResource>(tr => new
+            {
+                tr.StringField,
+                tr.NullableIntField
+            });
 
             // Act
-            var resourceObject = _builder.Build(resource, attrs);
+            ResourceObject resourceObject = _builder.Build(resource, attrs);
 
             // Assert
             Assert.NotNull(resourceObject.Attributes);
@@ -75,7 +88,7 @@ namespace UnitTests.Serialization.Serializer
             var resource = new MultipleRelationshipsPrincipalPart();
 
             // Act
-            var resourceObject = _builder.Build(resource);
+            ResourceObject resourceObject = _builder.Build(resource);
 
             // Assert
             Assert.Null(resourceObject.Attributes);
@@ -90,11 +103,14 @@ namespace UnitTests.Serialization.Serializer
             // Arrange
             var resource = new MultipleRelationshipsPrincipalPart
             {
-                PopulatedToOne = new OneToOneDependent { Id = 10 }
+                PopulatedToOne = new OneToOneDependent
+                {
+                    Id = 10
+                }
             };
 
             // Act
-            var resourceObject = _builder.Build(resource);
+            ResourceObject resourceObject = _builder.Build(resource);
 
             // Assert
             Assert.Null(resourceObject.Attributes);
@@ -109,13 +125,29 @@ namespace UnitTests.Serialization.Serializer
             // Arrange
             var resource = new MultipleRelationshipsPrincipalPart
             {
-                PopulatedToOne = new OneToOneDependent { Id = 10 },
-                PopulatedToManies = new HashSet<OneToManyDependent> { new OneToManyDependent { Id = 20 } }
+                PopulatedToOne = new OneToOneDependent
+                {
+                    Id = 10
+                },
+                PopulatedToManies = new HashSet<OneToManyDependent>
+                {
+                    new OneToManyDependent
+                    {
+                        Id = 20
+                    }
+                }
             };
-            var relationships = _resourceGraph.GetRelationships<MultipleRelationshipsPrincipalPart>(tr => new { tr.PopulatedToManies, tr.PopulatedToOne, tr.EmptyToOne, tr.EmptyToManies });
+
+            IReadOnlyCollection<RelationshipAttribute> relationships = ResourceGraph.GetRelationships<MultipleRelationshipsPrincipalPart>(tr => new
+            {
+                tr.PopulatedToManies,
+                tr.PopulatedToOne,
+                tr.EmptyToOne,
+                tr.EmptyToManies
+            });
 
             // Act
-            var resourceObject = _builder.Build(resource, relationships: relationships);
+            ResourceObject resourceObject = _builder.Build(resource, relationships: relationships);
 
             // Assert
             Assert.Equal(4, resourceObject.Relationships.Count);
@@ -135,11 +167,19 @@ namespace UnitTests.Serialization.Serializer
         public void ResourceWithRelationshipsToResourceObject_DeviatingForeignKeyWhileRelationshipIncluded_IgnoresForeignKeyDuringBuild()
         {
             // Arrange
-            var resource = new OneToOneDependent { Principal = new OneToOnePrincipal { Id = 10 }, PrincipalId = 123 };
-            var relationships = _resourceGraph.GetRelationships<OneToOneDependent>(tr => tr.Principal);
+            var resource = new OneToOneDependent
+            {
+                Principal = new OneToOnePrincipal
+                {
+                    Id = 10
+                },
+                PrincipalId = 123
+            };
+
+            IReadOnlyCollection<RelationshipAttribute> relationships = ResourceGraph.GetRelationships<OneToOneDependent>(tr => tr.Principal);
 
             // Act
-            var resourceObject = _builder.Build(resource, relationships: relationships);
+            ResourceObject resourceObject = _builder.Build(resource, relationships: relationships);
 
             // Assert
             Assert.Single(resourceObject.Relationships);
@@ -152,11 +192,16 @@ namespace UnitTests.Serialization.Serializer
         public void ResourceWithRelationshipsToResourceObject_DeviatingForeignKeyAndNoNavigationWhileRelationshipIncluded_IgnoresForeignKeyDuringBuild()
         {
             // Arrange
-            var resource = new OneToOneDependent { Principal = null, PrincipalId = 123 };
-            var relationships = _resourceGraph.GetRelationships<OneToOneDependent>(tr => tr.Principal);
+            var resource = new OneToOneDependent
+            {
+                Principal = null,
+                PrincipalId = 123
+            };
+
+            IReadOnlyCollection<RelationshipAttribute> relationships = ResourceGraph.GetRelationships<OneToOneDependent>(tr => tr.Principal);
 
             // Act
-            var resourceObject = _builder.Build(resource, relationships: relationships);
+            ResourceObject resourceObject = _builder.Build(resource, relationships: relationships);
 
             // Assert
             Assert.Null(resourceObject.Relationships["principal"].Data);
@@ -166,11 +211,19 @@ namespace UnitTests.Serialization.Serializer
         public void ResourceWithRequiredRelationshipsToResourceObject_DeviatingForeignKeyWhileRelationshipIncluded_IgnoresForeignKeyDuringBuild()
         {
             // Arrange
-            var resource = new OneToOneRequiredDependent { Principal = new OneToOnePrincipal { Id = 10 }, PrincipalId = 123 };
-            var relationships = _resourceGraph.GetRelationships<OneToOneRequiredDependent>(tr => tr.Principal);
+            var resource = new OneToOneRequiredDependent
+            {
+                Principal = new OneToOnePrincipal
+                {
+                    Id = 10
+                },
+                PrincipalId = 123
+            };
+
+            IReadOnlyCollection<RelationshipAttribute> relationships = ResourceGraph.GetRelationships<OneToOneRequiredDependent>(tr => tr.Principal);
 
             // Act
-            var resourceObject = _builder.Build(resource, relationships: relationships);
+            ResourceObject resourceObject = _builder.Build(resource, relationships: relationships);
 
             // Assert
             Assert.Single(resourceObject.Relationships);

@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace JsonApiDotNetCore.Controllers.Annotations
 {
     /// <summary>
@@ -9,8 +11,12 @@ namespace JsonApiDotNetCore.Controllers.Annotations
     /// {
     /// }
     /// ]]></example>
+    [PublicAPI]
     public sealed class NoHttpPostAttribute : HttpRestrictAttribute
     {
-        protected override string[] Methods { get; } = { "POST" };
+        protected override string[] Methods { get; } =
+        {
+            "POST"
+        };
     }
 }

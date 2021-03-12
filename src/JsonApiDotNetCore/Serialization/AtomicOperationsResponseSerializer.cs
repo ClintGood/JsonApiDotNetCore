@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Middleware;
 using JsonApiDotNetCore.Resources;
+using JsonApiDotNetCore.Resources.Annotations;
 using JsonApiDotNetCore.Serialization.Building;
 using JsonApiDotNetCore.Serialization.Objects;
 
 namespace JsonApiDotNetCore.Serialization
 {
     /// <summary>
-    /// Server serializer implementation of <see cref="BaseSerializer"/> for atomic:operations responses.
+    /// Server serializer implementation of <see cref="BaseSerializer" /> for atomic:operations responses.
     /// </summary>
+    [PublicAPI]
     public sealed class AtomicOperationsResponseSerializer : BaseSerializer, IJsonApiSerializer
     {
         private readonly IMetaBuilder _metaBuilder;
@@ -23,16 +26,21 @@ namespace JsonApiDotNetCore.Serialization
         /// <inheritdoc />
         public string ContentType { get; } = HeaderConstants.AtomicOperationsMediaType;
 
-        public AtomicOperationsResponseSerializer(IResourceObjectBuilder resourceObjectBuilder,
-            IMetaBuilder metaBuilder, ILinkBuilder linkBuilder, IFieldsToSerialize fieldsToSerialize,
-            IJsonApiRequest request, IJsonApiOptions options)
+        public AtomicOperationsResponseSerializer(IResourceObjectBuilder resourceObjectBuilder, IMetaBuilder metaBuilder, ILinkBuilder linkBuilder,
+            IFieldsToSerialize fieldsToSerialize, IJsonApiRequest request, IJsonApiOptions options)
             : base(resourceObjectBuilder)
         {
-            _metaBuilder = metaBuilder ?? throw new ArgumentNullException(nameof(metaBuilder));
-            _linkBuilder = linkBuilder ?? throw new ArgumentNullException(nameof(linkBuilder));
-            _fieldsToSerialize = fieldsToSerialize ?? throw new ArgumentNullException(nameof(fieldsToSerialize));
-            _request = request ?? throw new ArgumentNullException(nameof(request));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            ArgumentGuard.NotNull(metaBuilder, nameof(metaBuilder));
+            ArgumentGuard.NotNull(linkBuilder, nameof(linkBuilder));
+            ArgumentGuard.NotNull(fieldsToSerialize, nameof(fieldsToSerialize));
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(options, nameof(options));
+
+            _metaBuilder = metaBuilder;
+            _linkBuilder = linkBuilder;
+            _fieldsToSerialize = fieldsToSerialize;
+            _request = request;
+            _options = options;
         }
 
         /// <inheritdoc />
@@ -71,9 +79,9 @@ namespace JsonApiDotNetCore.Serialization
                 _request.CopyFrom(operation.Request);
                 _fieldsToSerialize.ResetCache();
 
-                var resourceType = operation.Resource.GetType();
-                var attributes = _fieldsToSerialize.GetAttributes(resourceType);
-                var relationships = _fieldsToSerialize.GetRelationships(resourceType);
+                Type resourceType = operation.Resource.GetType();
+                IReadOnlyCollection<AttrAttribute> attributes = _fieldsToSerialize.GetAttributes(resourceType);
+                IReadOnlyCollection<RelationshipAttribute> relationships = _fieldsToSerialize.GetRelationships(resourceType);
 
                 resourceObject = ResourceObjectBuilder.Build(operation.Resource, attributes, relationships);
             }
@@ -91,7 +99,10 @@ namespace JsonApiDotNetCore.Serialization
 
         private string SerializeErrorDocument(ErrorDocument errorDocument)
         {
-            return SerializeObject(errorDocument, _options.SerializerSettings, serializer => { serializer.ApplyErrorSettings(); });
+            return SerializeObject(errorDocument, _options.SerializerSettings, serializer =>
+            {
+                serializer.ApplyErrorSettings();
+            });
         }
     }
 }

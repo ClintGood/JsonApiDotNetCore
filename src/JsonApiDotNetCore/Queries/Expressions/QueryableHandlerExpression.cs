@@ -1,13 +1,15 @@
 using System;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources;
 using Microsoft.Extensions.Primitives;
 
 namespace JsonApiDotNetCore.Queries.Expressions
 {
     /// <summary>
-    /// Holds a <see cref="IQueryable{T}"/> expression, used for custom query string handlers from <see cref="IResourceDefinition{TResource, TId}"/>s.
+    /// Holds an <see cref="IQueryable{T}" /> expression, used for custom query string handlers from <see cref="IResourceDefinition{TResource,TId}" />s.
     /// </summary>
+    [PublicAPI]
     public class QueryableHandlerExpression : QueryExpression
     {
         private readonly object _queryableHandler;
@@ -15,14 +17,16 @@ namespace JsonApiDotNetCore.Queries.Expressions
 
         public QueryableHandlerExpression(object queryableHandler, StringValues parameterValue)
         {
-            _queryableHandler = queryableHandler ?? throw new ArgumentNullException(nameof(queryableHandler));
+            ArgumentGuard.NotNull(queryableHandler, nameof(queryableHandler));
+
+            _queryableHandler = queryableHandler;
             _parameterValue = parameterValue;
         }
 
         public IQueryable<TResource> Apply<TResource>(IQueryable<TResource> query)
             where TResource : class, IIdentifiable
         {
-            var handler = (Func<IQueryable<TResource>, StringValues, IQueryable<TResource>>) _queryableHandler;
+            var handler = (Func<IQueryable<TResource>, StringValues, IQueryable<TResource>>)_queryableHandler;
             return handler(query, _parameterValue);
         }
 
@@ -48,7 +52,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (QueryableHandlerExpression) obj;
+            var other = (QueryableHandlerExpression)obj;
 
             return _queryableHandler == other._queryableHandler && _parameterValue.Equals(other._parameterValue);
         }

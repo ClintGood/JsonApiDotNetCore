@@ -1,18 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Internal.Parsing
 {
+    [PublicAPI]
     public class SparseFieldSetParser : QueryExpressionParser
     {
         private readonly Action<ResourceFieldAttribute, ResourceContext, string> _validateSingleFieldCallback;
         private ResourceContext _resourceContext;
 
-        public SparseFieldSetParser(IResourceContextProvider resourceContextProvider, Action<ResourceFieldAttribute, ResourceContext, string> validateSingleFieldCallback = null)
+        public SparseFieldSetParser(IResourceContextProvider resourceContextProvider,
+            Action<ResourceFieldAttribute, ResourceContext, string> validateSingleFieldCallback = null)
             : base(resourceContextProvider)
         {
             _validateSingleFieldCallback = validateSingleFieldCallback;
@@ -20,10 +23,13 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
 
         public SparseFieldSetExpression Parse(string source, ResourceContext resourceContext)
         {
-            _resourceContext = resourceContext ?? throw new ArgumentNullException(nameof(resourceContext));
+            ArgumentGuard.NotNull(resourceContext, nameof(resourceContext));
+
+            _resourceContext = resourceContext;
+
             Tokenize(source);
 
-            var expression = ParseSparseFieldSet();
+            SparseFieldSetExpression expression = ParseSparseFieldSet();
 
             AssertTokenStackIsEmpty();
 
@@ -52,11 +58,11 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
 
         protected override IReadOnlyCollection<ResourceFieldAttribute> OnResolveFieldChain(string path, FieldChainRequirements chainRequirements)
         {
-            var field = ChainResolver.GetField(path, _resourceContext, path);
+            ResourceFieldAttribute field = ChainResolver.GetField(path, _resourceContext, path);
 
             _validateSingleFieldCallback?.Invoke(field, _resourceContext, path);
 
-            return new[] {field};
+            return field.AsArray();
         }
     }
 }

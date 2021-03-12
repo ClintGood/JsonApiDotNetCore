@@ -12,14 +12,17 @@ namespace UnitTests.Models
         {
             // Arrange
             var relationshipData = new RelationshipEntry();
-            var relationships = new List<ResourceIdentifierObject> {
-                new ResourceIdentifierObject {
+
+            var relationships = new List<ResourceIdentifierObject>
+            {
+                new ResourceIdentifierObject
+                {
                     Id = "9",
                     Type = "authors"
                 }
             };
 
-            // Act 
+            // Act
             relationshipData.Data = relationships;
 
             // Assert
@@ -34,16 +37,17 @@ namespace UnitTests.Models
         {
             // Arrange
             var relationshipData = new RelationshipEntry();
-            var relationshipsJson = @"[
+
+            const string relationshipsJson = @"[
                 {
                     ""type"": ""authors"",
                     ""id"": ""9""
                 }
             ]";
 
-            var relationships = JArray.Parse(relationshipsJson);
+            JArray relationships = JArray.Parse(relationshipsJson);
 
-            // Act 
+            // Act
             relationshipData.Data = relationships;
 
             // Assert
@@ -58,12 +62,14 @@ namespace UnitTests.Models
         {
             // Arrange
             var relationshipData = new RelationshipEntry();
-            var relationship = new ResourceIdentifierObject {
+
+            var relationship = new ResourceIdentifierObject
+            {
                 Id = "9",
                 Type = "authors"
             };
 
-            // Act 
+            // Act
             relationshipData.Data = relationship;
 
             // Assert
@@ -78,14 +84,15 @@ namespace UnitTests.Models
         {
             // Arrange
             var relationshipData = new RelationshipEntry();
-            var relationshipJson = @"{
+
+            const string relationshipJson = @"{
                     ""id"": ""9"",
                     ""type"": ""authors""
                 }";
 
-            var relationship = JObject.Parse(relationshipJson);
+            JObject relationship = JObject.Parse(relationshipJson);
 
-            // Act 
+            // Act
             relationshipData.Data = relationship;
 
             // Assert

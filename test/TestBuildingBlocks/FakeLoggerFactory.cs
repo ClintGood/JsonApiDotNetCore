@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
 namespace TestBuildingBlocks
 {
+    [PublicAPI]
     public sealed class FakeLoggerFactory : ILoggerFactory, ILoggerProvider
     {
         public FakeLogger Logger { get; }
@@ -14,7 +16,10 @@ namespace TestBuildingBlocks
             Logger = new FakeLogger();
         }
 
-        public ILogger CreateLogger(string categoryName) => Logger;
+        public ILogger CreateLogger(string categoryName)
+        {
+            return Logger;
+        }
 
         public void AddProvider(ILoggerProvider provider)
         {
@@ -30,21 +35,26 @@ namespace TestBuildingBlocks
 
             public IReadOnlyCollection<FakeLogMessage> Messages => _messages;
 
-            public bool IsEnabled(LogLevel logLevel) => true;
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
 
             public void Clear()
             {
                 _messages.Clear();
             }
 
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
-                Func<TState, Exception, string> formatter)
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
             {
-                var message = formatter(state, exception);
+                string message = formatter(state, exception);
                 _messages.Add(new FakeLogMessage(logLevel, message));
             }
 
-            public IDisposable BeginScope<TState>(TState state) => null;
+            public IDisposable BeginScope<TState>(TState state)
+            {
+                return null;
+            }
         }
 
         public sealed class FakeLogMessage

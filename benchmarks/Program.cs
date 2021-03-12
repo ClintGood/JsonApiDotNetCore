@@ -5,7 +5,7 @@ using Benchmarks.Serialization;
 
 namespace Benchmarks
 {
-    internal class Program
+    internal static class Program
     {
         private static void Main(string[] args)
         {
@@ -16,6 +16,7 @@ namespace Benchmarks
                 typeof(QueryParserBenchmarks),
                 typeof(LinkBuilderGetNamespaceFromPathBenchmarks)
             });
+
             switcher.Run(args);
         }
     }

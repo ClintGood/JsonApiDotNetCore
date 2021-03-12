@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Queries;
 using JsonApiDotNetCore.Queries.Expressions;
 using JsonApiDotNetCore.Repositories;
@@ -9,6 +10,7 @@ using JsonApiDotNetCore.Resources;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Transactions
 {
+    [UsedImplicitly(ImplicitUseKindFlags.InstantiatedNoFixedConstructorSignature)]
     public sealed class PerformerRepository : IResourceRepository<Performer>
     {
         public Task<IReadOnlyCollection<Performer>> GetAsync(QueryLayer layer, CancellationToken cancellationToken)
@@ -56,8 +58,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.AtomicOperations.Transa
             throw new NotImplementedException();
         }
 
-        public Task RemoveFromToManyRelationshipAsync(Performer primaryResource, ISet<IIdentifiable> secondaryResourceIds,
-            CancellationToken cancellationToken)
+        public Task RemoveFromToManyRelationshipAsync(Performer primaryResource, ISet<IIdentifiable> secondaryResourceIds, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }

@@ -1,4 +1,5 @@
 using System.Data;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources.Annotations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -6,8 +7,15 @@ using Newtonsoft.Json.Serialization;
 namespace JsonApiDotNetCore.Configuration
 {
     /// <inheritdoc />
+    [PublicAPI]
     public sealed class JsonApiOptions : IJsonApiOptions
     {
+        internal static readonly NamingStrategy DefaultNamingStrategy = new CamelCaseNamingStrategy();
+
+        // Workaround for https://github.com/dotnet/efcore/issues/21026
+        internal bool DisableTopPagination { get; set; }
+        internal bool DisableChildrenPagination { get; set; }
+
         /// <inheritdoc />
         public string Namespace { get; set; }
 
@@ -72,19 +80,15 @@ namespace JsonApiDotNetCore.Configuration
         public int? MaximumOperationsPerRequest { get; set; } = 10;
 
         /// <inheritdoc />
-        public IsolationLevel? TransactionIsolationLevel { get; }
+        public IsolationLevel? TransactionIsolationLevel { get; set; }
 
         /// <inheritdoc />
         public JsonSerializerSettings SerializerSettings { get; } = new JsonSerializerSettings
         {
             ContractResolver = new DefaultContractResolver
             {
-                NamingStrategy = new CamelCaseNamingStrategy()
+                NamingStrategy = DefaultNamingStrategy
             }
         };
-
-        // Workaround for https://github.com/dotnet/efcore/issues/21026
-        internal bool DisableTopPagination { get; set; }
-        internal bool DisableChildrenPagination { get; set; }
     }
 }

@@ -23,10 +23,10 @@ namespace MultiDbContextTests
         public async Task Can_get_ResourceAs()
         {
             // Arrange
-            var route = "/resourceAs";
+            const string route = "/resourceAs";
 
             // Act
-            var (httpResponse, responseDocument) = await ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -39,10 +39,10 @@ namespace MultiDbContextTests
         public async Task Can_get_ResourceBs()
         {
             // Arrange
-            var route = "/resourceBs";
+            const string route = "/resourceBs";
 
             // Act
-            var (httpResponse, responseDocument) = await ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);

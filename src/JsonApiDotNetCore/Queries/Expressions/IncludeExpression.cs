@@ -1,31 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
 {
     /// <summary>
     /// Represents an inclusion tree, resulting from text such as: owner,articles.revisions
     /// </summary>
+    [PublicAPI]
     public class IncludeExpression : QueryExpression
     {
-        public IReadOnlyCollection<IncludeElementExpression> Elements { get; }
+        private static readonly IncludeChainConverter IncludeChainConverter = new IncludeChainConverter();
 
         public static readonly IncludeExpression Empty = new IncludeExpression();
+
+        public IReadOnlyCollection<IncludeElementExpression> Elements { get; }
+
+        public IncludeExpression(IReadOnlyCollection<IncludeElementExpression> elements)
+        {
+            ArgumentGuard.NotNullNorEmpty(elements, nameof(elements));
+
+            Elements = elements;
+        }
 
         private IncludeExpression()
         {
             Elements = Array.Empty<IncludeElementExpression>();
-        }
-
-        public IncludeExpression(IReadOnlyCollection<IncludeElementExpression> elements)
-        {
-            Elements = elements ?? throw new ArgumentNullException(nameof(elements));
-
-            if (!elements.Any())
-            {
-                throw new ArgumentException("Must have one or more elements.", nameof(elements));
-            }
         }
 
         public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
@@ -35,7 +36,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
 
         public override string ToString()
         {
-            var chains = IncludeChainConverter.GetRelationshipChains(this);
+            IReadOnlyCollection<ResourceFieldChainExpression> chains = IncludeChainConverter.GetRelationshipChains(this);
             return string.Join(",", chains.Select(child => child.ToString()));
         }
 
@@ -51,7 +52,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (IncludeExpression) obj;
+            var other = (IncludeExpression)obj;
 
             return Elements.SequenceEqual(other.Elements);
         }
@@ -60,7 +61,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
         {
             var hashCode = new HashCode();
 
-            foreach (var element in Elements)
+            foreach (IncludeElementExpression element in Elements)
             {
                 hashCode.Add(element);
             }

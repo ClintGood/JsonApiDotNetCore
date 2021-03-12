@@ -18,12 +18,10 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
 
         protected QueryStringParameterReader(IJsonApiRequest request, IResourceContextProvider resourceContextProvider)
         {
-            if (request == null)
-            {
-                throw new ArgumentNullException(nameof(request));
-            }
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(resourceContextProvider, nameof(resourceContextProvider));
 
-            _resourceContextProvider = resourceContextProvider ?? throw new ArgumentNullException(nameof(resourceContextProvider));
+            _resourceContextProvider = resourceContextProvider;
             _isCollectionRequest = request.IsCollection;
             RequestResource = request.SecondaryResource ?? request.PrimaryResource;
             IsAtomicOperationsRequest = request.Kind == EndpointKind.AtomicOperations;
@@ -36,8 +34,8 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
                 return RequestResource;
             }
 
-            var lastField = scope.Fields.Last();
-            var type = lastField is RelationshipAttribute relationship ? relationship.RightType : lastField.Property.PropertyType;
+            ResourceFieldAttribute lastField = scope.Fields.Last();
+            Type type = lastField is RelationshipAttribute relationship ? relationship.RightType : lastField.Property.PropertyType;
 
             return _resourceContextProvider.GetResourceContext(type);
         }

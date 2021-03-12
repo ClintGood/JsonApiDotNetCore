@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
@@ -12,7 +13,6 @@ using JsonApiDotNetCore.Serialization.Objects;
 using JsonApiDotNetCoreExample.Data;
 using JsonApiDotNetCoreExample.Definitions;
 using JsonApiDotNetCoreExample.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using TestBuildingBlocks;
@@ -20,8 +20,7 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
 {
-    public sealed class ResourceHookTests
-        : IClassFixture<ExampleIntegrationTestContext<ResourceHooksStartup<AppDbContext>, AppDbContext>>
+    public sealed class ResourceHookTests : IClassFixture<ExampleIntegrationTestContext<ResourceHooksStartup<AppDbContext>, AppDbContext>>
     {
         private readonly ExampleIntegrationTestContext<ResourceHooksStartup<AppDbContext>, AppDbContext> _testContext;
         private readonly ExampleFakers _fakers = new ExampleFakers();
@@ -41,7 +40,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 services.AddScoped(typeof(IResourceChangeTracker<>), typeof(NeverSameResourceChangeTracker<>));
             });
 
-            var options = (JsonApiOptions) _testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)_testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.DisableTopPagination = false;
             options.DisableChildrenPagination = false;
         }
@@ -50,31 +49,36 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_create_user_with_password()
         {
             // Arrange
-            var user = _fakers.User.Generate();
+            User newUser = _fakers.User.Generate();
 
-            var serializer = GetRequestSerializer<User>(p => new {p.Password, p.UserName});
-            string requestBody = serializer.Serialize(user);
+            IRequestSerializer serializer = GetRequestSerializer<User>(user => new
+            {
+                user.Password,
+                user.UserName
+            });
 
-            var route = "/api/v1/users";
+            string requestBody = serializer.Serialize(newUser);
+
+            const string route = "/api/v1/users";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecutePostAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
-            var responseUser = GetResponseDeserializer().DeserializeSingle<User>(responseDocument).Data;
+            User responseUser = GetResponseDeserializer().DeserializeSingle<User>(responseDocument).Data;
             var document = JsonConvert.DeserializeObject<Document>(responseDocument);
 
             document.SingleData.Attributes.Should().NotContainKey("password");
-            document.SingleData.Attributes["userName"].Should().Be(user.UserName);
+            document.SingleData.Attributes["userName"].Should().Be(newUser.UserName);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var userInDatabase = await dbContext.Users.FirstAsync(u => u.Id == responseUser.Id);
+                User userInDatabase = await dbContext.Users.FirstWithIdAsync(responseUser.Id);
 
-                userInDatabase.UserName.Should().Be(user.UserName);
-                userInDatabase.Password.Should().Be(user.Password);
+                userInDatabase.UserName.Should().Be(newUser.UserName);
+                userInDatabase.Password.Should().Be(newUser.Password);
             });
         }
 
@@ -82,35 +86,39 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_update_user_password()
         {
             // Arrange
-            var user = _fakers.User.Generate();
+            User existingUser = _fakers.User.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                dbContext.Users.Add(user);
+                dbContext.Users.Add(existingUser);
                 await dbContext.SaveChangesAsync();
             });
 
-            user.Password = _fakers.User.Generate().Password;
+            existingUser.Password = _fakers.User.Generate().Password;
 
-            var serializer = GetRequestSerializer<User>(p => new {p.Password});
-            string requestBody = serializer.Serialize(user);
+            IRequestSerializer serializer = GetRequestSerializer<User>(user => new
+            {
+                user.Password
+            });
 
-            var route = $"/api/v1/users/{user.Id}";
+            string requestBody = serializer.Serialize(existingUser);
+
+            string route = $"/api/v1/users/{existingUser.Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePatchAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             responseDocument.SingleData.Attributes.Should().NotContainKey("password");
-            responseDocument.SingleData.Attributes["userName"].Should().Be(user.UserName);
+            responseDocument.SingleData.Attributes["userName"].Should().Be(existingUser.UserName);
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
-                var userInDatabase = await dbContext.Users.FirstAsync(u => u.Id == user.Id);
+                User userInDatabase = await dbContext.Users.FirstWithIdAsync(existingUser.Id);
 
-                userInDatabase.Password.Should().Be(user.Password);
+                userInDatabase.Password.Should().Be(existingUser.Password);
             });
         }
 
@@ -118,43 +126,47 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_block_access_to_resource_from_GetSingle_endpoint_using_BeforeRead_hook()
         {
             // Arrange
-            var route = "/api/v1/todoItems/1337";
+            const string route = "/api/v1/todoItems/1337";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update the author of todo items.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update the author of todo items.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_access_to_included_resource_using_BeforeRead_hook()
         {
             // Arrange
-            var route = "/api/v1/people/1?include=passport";
+            const string route = "/api/v1/people/1?include=passport";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to include passports on individual persons.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to include passports on individual persons.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_access_to_resource_from_GetSingle_endpoint_using_OnReturn_hook()
         {
             // Arrange
-            var article = _fakers.Article.Generate();
+            Article article = _fakers.Article.Generate();
             article.Caption = "Classified";
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -163,26 +175,28 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/articles/{article.Id}";
+            string route = $"/api/v1/articles/{article.Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteGetAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to see this article.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to see this article.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_hide_primary_resource_from_result_set_from_GetAll_endpoint_using_OnReturn_hook()
         {
             // Arrange
-            var articles = _fakers.Article.Generate(3);
-            string toBeExcluded = "This should not be included";
+            List<Article> articles = _fakers.Article.Generate(3);
+            const string toBeExcluded = "This should not be included";
             articles[0].Caption = toBeExcluded;
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -191,10 +205,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/api/v1/articles";
+            const string route = "/api/v1/articles";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -206,8 +220,12 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_hide_secondary_resource_from_ToOne_relationship_using_OnReturn_hook()
         {
             // Arrange
-            var person = _fakers.Person.Generate();
-            person.Passport = new Passport {IsLocked = true};
+            Person person = _fakers.Person.Generate();
+
+            person.Passport = new Passport
+            {
+                IsLocked = true
+            };
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -215,10 +233,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/people/{person.Id}/passport";
+            string route = $"/api/v1/people/{person.Id}/passport";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -226,14 +244,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
             responseDocument.Data.Should().BeNull();
         }
 
-
         [Fact]
         public async Task Can_hide_secondary_resource_from_ToMany_List_relationship_using_OnReturn_hook()
         {
             // Arrange
-            string toBeExcluded = "This should not be included";
+            const string toBeExcluded = "This should not be included";
 
-            var author = _fakers.Author.Generate();
+            Author author = _fakers.Author.Generate();
             author.Articles = _fakers.Article.Generate(3);
             author.Articles[0].Caption = toBeExcluded;
 
@@ -243,10 +260,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/authors/{author.Id}/articles";
+            string route = $"/api/v1/authors/{author.Id}/articles";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -258,9 +275,9 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_hide_secondary_resource_from_ToMany_Set_relationship_using_OnReturn_hook()
         {
             // Arrange
-            string toBeExcluded = "This should not be included";
+            const string toBeExcluded = "This should not be included";
 
-            var person = _fakers.Person.Generate();
+            Person person = _fakers.Person.Generate();
             person.TodoItems = _fakers.TodoItem.Generate(3).ToHashSet();
             person.TodoItems.First().Description = toBeExcluded;
 
@@ -270,10 +287,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/people/{person.Id}/todoItems";
+            string route = $"/api/v1/people/{person.Id}/todoItems";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -285,12 +302,13 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_hide_resource_from_included_HasManyThrough_relationship_using_OnReturn_hook()
         {
             // Arrange
-            string toBeExcluded = "This should not be included";
+            const string toBeExcluded = "This should not be included";
 
-            var tags = _fakers.Tag.Generate(2);
+            List<Tag> tags = _fakers.Tag.Generate(2);
             tags[0].Name = toBeExcluded;
 
-            var article = _fakers.Article.Generate();
+            Article article = _fakers.Article.Generate();
+
             article.ArticleTags = new HashSet<ArticleTag>
             {
                 new ArticleTag
@@ -310,14 +328,14 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
             });
 
             // Workaround for https://github.com/dotnet/efcore/issues/21026
-            var options = (JsonApiOptions) _testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)_testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.DisableTopPagination = false;
             options.DisableChildrenPagination = true;
 
-            var route = "/api/v1/articles?include=tags";
+            const string route = "/api/v1/articles?include=tags";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
+            (HttpResponseMessage httpResponse, string responseDocument) = await _testContext.ExecuteGetAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
@@ -329,7 +347,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
         public async Task Can_block_creating_ToOne_relationship_using_BeforeUpdateRelationship_hook()
         {
             // Arrange
-            var lockedPerson = _fakers.Person.Generate();
+            Person lockedPerson = _fakers.Person.Generate();
             lockedPerson.IsLocked = true;
             lockedPerson.Passport = new Passport();
 
@@ -358,26 +376,32 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 }
             };
 
-            var route = "/api/v1/people";
+            const string route = "/api/v1/people";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'people'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'people'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_replacing_ToOne_relationship_using_BeforeImplicitUpdateRelationship_hook()
         {
             // Arrange
-            var person = _fakers.Person.Generate();
-            person.Passport = new Passport {IsLocked = true};
+            Person person = _fakers.Person.Generate();
+
+            person.Passport = new Passport
+            {
+                IsLocked = true
+            };
 
             var newPassport = new Passport();
 
@@ -407,26 +431,32 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 }
             };
 
-            var route = $"/api/v1/people/{person.Id}";
+            string route = $"/api/v1/people/{person.Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'passports'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'passports'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_clearing_ToOne_relationship_using_BeforeImplicitUpdateRelationship_hook()
         {
             // Arrange
-            var person = _fakers.Person.Generate();
-            person.Passport = new Passport {IsLocked = true};
+            Person person = _fakers.Person.Generate();
+
+            person.Passport = new Passport
+            {
+                IsLocked = true
+            };
 
             var newPassport = new Passport();
 
@@ -446,31 +476,33 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                     {
                         passport = new
                         {
-                            data = (object) null
+                            data = (object)null
                         }
                     }
                 }
             };
 
-            var route = $"/api/v1/people/{person.Id}";
+            string route = $"/api/v1/people/{person.Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'passports'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'passports'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_deleting_primary_resource_using_BeforeImplicitUpdateRelationship_hook()
         {
             // Arrange
-            var lockedPerson = _fakers.Person.Generate();
+            Person lockedPerson = _fakers.Person.Generate();
             lockedPerson.IsLocked = true;
             lockedPerson.Passport = new Passport();
 
@@ -480,26 +512,28 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/passports/{lockedPerson.Passport.StringId}";
+            string route = $"/api/v1/passports/{lockedPerson.Passport.StringId}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'people'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'people'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_creating_ToMany_relationship_using_BeforeUpdateRelationship_hook()
         {
             // Arrange
-            var persons = _fakers.Person.Generate(2);
-            var lockedTodo = _fakers.TodoItem.Generate();
+            List<Person> persons = _fakers.Person.Generate(2);
+            TodoItem lockedTodo = _fakers.TodoItem.Generate();
             lockedTodo.IsLocked = true;
             lockedTodo.StakeHolders = persons.ToHashSet();
 
@@ -536,31 +570,33 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 }
             };
 
-            var route = "/api/v1/todoItems";
+            const string route = "/api/v1/todoItems";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePostAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_replacing_ToMany_relationship_using_BeforeImplicitUpdateRelationship_hook()
         {
             // Arrange
-            var persons = _fakers.Person.Generate(2);
+            List<Person> persons = _fakers.Person.Generate(2);
 
-            var lockedTodo = _fakers.TodoItem.Generate();
+            TodoItem lockedTodo = _fakers.TodoItem.Generate();
             lockedTodo.IsLocked = true;
             lockedTodo.StakeHolders = persons.ToHashSet();
 
-            var unlockedTodo = _fakers.TodoItem.Generate();
+            TodoItem unlockedTodo = _fakers.TodoItem.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -596,26 +632,28 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 }
             };
 
-            var route = $"/api/v1/todoItems/{unlockedTodo.Id}";
+            string route = $"/api/v1/todoItems/{unlockedTodo.Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecutePatchAsync<ErrorDocument>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
+            error.Detail.Should().BeNull();
         }
 
         [Fact]
         public async Task Can_block_clearing_ToMany_relationship_using_BeforeImplicitUpdateRelationship_hook()
         {
             // Arrange
-            var persons = _fakers.Person.Generate(2);
-            var lockedTodo = _fakers.TodoItem.Generate();
+            List<Person> persons = _fakers.Person.Generate(2);
+            TodoItem lockedTodo = _fakers.TodoItem.Generate();
             lockedTodo.IsLocked = true;
             lockedTodo.StakeHolders = persons.ToHashSet();
 
@@ -625,18 +663,20 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.ResourceHooks
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/api/v1/people/{persons[0].Id}";
+            string route = $"/api/v1/people/{persons[0].Id}";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route);
+            (HttpResponseMessage httpResponse, ErrorDocument responseDocument) = await _testContext.ExecuteDeleteAsync<ErrorDocument>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Forbidden);
 
             responseDocument.Errors.Should().HaveCount(1);
-            responseDocument.Errors[0].StatusCode.Should().Be(HttpStatusCode.Forbidden);
-            responseDocument.Errors[0].Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
-            responseDocument.Errors[0].Detail.Should().BeNull();
+
+            Error error = responseDocument.Errors[0];
+            error.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            error.Title.Should().Be("You are not allowed to update fields or relationships of locked resource of type 'todoItems'.");
+            error.Detail.Should().BeNull();
         }
 
         private IRequestSerializer GetRequestSerializer<TResource>(Expression<Func<TResource, dynamic>> attributes = null,

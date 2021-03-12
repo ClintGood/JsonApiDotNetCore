@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Internal.Parsing
 {
+    [PublicAPI]
     public class SparseFieldTypeParser : QueryExpressionParser
     {
         private readonly IResourceContextProvider _resourceContextProvider;
@@ -19,11 +21,11 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
         {
             Tokenize(source);
 
-            var expression = ParseSparseFieldTarget();
+            ResourceContext resourceContext = ParseSparseFieldTarget();
 
             AssertTokenStackIsEmpty();
 
-            return expression;
+            return resourceContext;
         }
 
         private ResourceContext ParseSparseFieldTarget()
@@ -35,7 +37,7 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
 
             EatSingleCharacterToken(TokenKind.OpenBracket);
 
-            var resourceContext = ParseResourceName();
+            ResourceContext resourceContext = ParseResourceName();
 
             EatSingleCharacterToken(TokenKind.CloseBracket);
 
@@ -54,7 +56,8 @@ namespace JsonApiDotNetCore.Queries.Internal.Parsing
 
         private ResourceContext GetResourceContext(string resourceName)
         {
-            var resourceContext = _resourceContextProvider.GetResourceContext(resourceName);
+            ResourceContext resourceContext = _resourceContextProvider.GetResourceContext(resourceName);
+
             if (resourceContext == null)
             {
                 throw new QueryParseException($"Resource type '{resourceName}' does not exist.");

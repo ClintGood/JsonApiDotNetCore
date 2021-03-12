@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Controllers.Annotations;
 using JsonApiDotNetCore.Errors;
@@ -12,6 +12,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace JsonApiDotNetCore.QueryStrings.Internal
 {
+    [PublicAPI]
     public class IncludeQueryStringParameterReader : QueryStringParameterReader, IIncludeQueryStringParameterReader
     {
         private readonly IJsonApiOptions _options;
@@ -23,7 +24,9 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
         public IncludeQueryStringParameterReader(IJsonApiRequest request, IResourceContextProvider resourceContextProvider, IJsonApiOptions options)
             : base(request, resourceContextProvider)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            ArgumentGuard.NotNull(options, nameof(options));
+
+            _options = options;
             _includeParser = new IncludeParser(resourceContextProvider, ValidateSingleRelationship);
         }
 
@@ -31,8 +34,7 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
         {
             if (!relationship.CanInclude)
             {
-                throw new InvalidQueryStringParameterException(_lastParameterName,
-                    "Including the requested relationship is not allowed.",
+                throw new InvalidQueryStringParameterException(_lastParameterName, "Including the requested relationship is not allowed.",
                     path == relationship.PublicName
                         ? $"Including the relationship '{relationship.PublicName}' on '{resourceContext.PublicName}' is not allowed."
                         : $"Including the relationship '{relationship.PublicName}' in '{path}' on '{resourceContext.PublicName}' is not allowed.");
@@ -42,10 +44,9 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
         /// <inheritdoc />
         public virtual bool IsEnabled(DisableQueryStringAttribute disableQueryStringAttribute)
         {
-            if (disableQueryStringAttribute == null) throw new ArgumentNullException(nameof(disableQueryStringAttribute));
+            ArgumentGuard.NotNull(disableQueryStringAttribute, nameof(disableQueryStringAttribute));
 
-            return !IsAtomicOperationsRequest &&
-                !disableQueryStringAttribute.ContainsParameter(StandardQueryStringParameters.Include);
+            return !IsAtomicOperationsRequest && !disableQueryStringAttribute.ContainsParameter(StandardQueryStringParameters.Include);
         }
 
         /// <inheritdoc />
@@ -65,8 +66,7 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
             }
             catch (QueryParseException exception)
             {
-                throw new InvalidQueryStringParameterException(parameterName, "The specified include is invalid.",
-                    exception.Message, exception);
+                throw new InvalidQueryStringParameterException(parameterName, "The specified include is invalid.", exception.Message, exception);
             }
         }
 
@@ -78,11 +78,11 @@ namespace JsonApiDotNetCore.QueryStrings.Internal
         /// <inheritdoc />
         public virtual IReadOnlyCollection<ExpressionInScope> GetConstraints()
         {
-            var expressionInScope = _includeExpression != null
+            ExpressionInScope expressionInScope = _includeExpression != null
                 ? new ExpressionInScope(null, _includeExpression)
                 : new ExpressionInScope(null, IncludeExpression.Empty);
 
-            return new[] {expressionInScope};
+            return expressionInScope.AsArray();
         }
     }
 }

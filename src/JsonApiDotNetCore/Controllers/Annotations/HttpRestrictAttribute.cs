@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -11,14 +10,12 @@ namespace JsonApiDotNetCore.Controllers.Annotations
     {
         protected abstract string[] Methods { get; }
 
-        public override async Task OnActionExecutionAsync(
-            ActionExecutingContext context,
-            ActionExecutionDelegate next)
+        public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (next == null) throw new ArgumentNullException(nameof(next));
+            ArgumentGuard.NotNull(context, nameof(context));
+            ArgumentGuard.NotNull(next, nameof(next));
 
-            var method = context.HttpContext.Request.Method;
+            string method = context.HttpContext.Request.Method;
 
             if (!CanExecuteAction(method))
             {

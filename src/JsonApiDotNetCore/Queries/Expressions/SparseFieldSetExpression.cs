@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Resources.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
@@ -8,18 +9,16 @@ namespace JsonApiDotNetCore.Queries.Expressions
     /// <summary>
     /// Represents a sparse fieldset, resulting from text such as: firstName,lastName,articles
     /// </summary>
+    [PublicAPI]
     public class SparseFieldSetExpression : QueryExpression
     {
         public IReadOnlyCollection<ResourceFieldAttribute> Fields { get; }
 
         public SparseFieldSetExpression(IReadOnlyCollection<ResourceFieldAttribute> fields)
         {
-            Fields = fields ?? throw new ArgumentNullException(nameof(fields));
+            ArgumentGuard.NotNullNorEmpty(fields, nameof(fields));
 
-            if (!fields.Any())
-            {
-                throw new ArgumentException("Must have one or more fields.", nameof(fields));
-            }
+            Fields = fields;
         }
 
         public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
@@ -44,7 +43,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (SparseFieldSetExpression) obj;
+            var other = (SparseFieldSetExpression)obj;
 
             return Fields.SequenceEqual(other.Fields);
         }
@@ -53,7 +52,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
         {
             var hashCode = new HashCode();
 
-            foreach (var field in Fields)
+            foreach (ResourceFieldAttribute field in Fields)
             {
                 hashCode.Add(field);
             }

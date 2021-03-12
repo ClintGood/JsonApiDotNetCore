@@ -1,4 +1,6 @@
+using System;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCoreExampleTests.Startups;
@@ -9,8 +11,7 @@ using Xunit;
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
 {
-    public sealed class LoggingTests
-        : IClassFixture<ExampleIntegrationTestContext<TestableStartup<AuditDbContext>, AuditDbContext>>
+    public sealed class LoggingTests : IClassFixture<ExampleIntegrationTestContext<TestableStartup<AuditDbContext>, AuditDbContext>>
     {
         private readonly ExampleIntegrationTestContext<TestableStartup<AuditDbContext>, AuditDbContext> _testContext;
         private readonly AuditFakers _fakers = new AuditFakers();
@@ -28,7 +29,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
                 options.ClearProviders();
                 options.AddProvider(loggerFactory);
                 options.SetMinimumLevel(LogLevel.Trace);
-                options.AddFilter((category, level) => true);
+                options.AddFilter((_, __) => true);
             });
 
             testContext.ConfigureServicesBeforeStartup(services =>
@@ -47,7 +48,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
             var loggerFactory = _testContext.Factory.Services.GetRequiredService<FakeLoggerFactory>();
             loggerFactory.Logger.Clear();
 
-            var newEntry = _fakers.AuditEntry.Generate();
+            AuditEntry newEntry = _fakers.AuditEntry.Generate();
 
             var requestBody = new
             {
@@ -63,10 +64,10 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
             };
 
             // Arrange
-            var route = "/auditEntries";
+            const string route = "/auditEntries";
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecutePostAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecutePostAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
@@ -74,7 +75,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
             loggerFactory.Logger.Messages.Should().NotBeEmpty();
 
             loggerFactory.Logger.Messages.Should().ContainSingle(message => message.LogLevel == LogLevel.Trace &&
-                message.Text.StartsWith("Received request at 'http://localhost/auditEntries' with body: <<"));
+                message.Text.StartsWith("Received request at 'http://localhost/auditEntries' with body: <<", StringComparison.Ordinal));
         }
 
         [Fact]
@@ -85,18 +86,18 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
             loggerFactory.Logger.Clear();
 
             // Arrange
-            var route = "/auditEntries";
+            const string route = "/auditEntries";
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecuteGetAsync<string>(route);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecuteGetAsync<string>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
             loggerFactory.Logger.Messages.Should().NotBeEmpty();
 
-            loggerFactory.Logger.Messages.Should().ContainSingle(message => message.LogLevel == LogLevel.Trace && 
-                message.Text.StartsWith("Sending 200 response for request at 'http://localhost/auditEntries' with body: <<"));
+            loggerFactory.Logger.Messages.Should().ContainSingle(message => message.LogLevel == LogLevel.Trace &&
+                message.Text.StartsWith("Sending 200 response for request at 'http://localhost/auditEntries' with body: <<", StringComparison.Ordinal));
         }
 
         [Fact]
@@ -107,12 +108,12 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Logging
             loggerFactory.Logger.Clear();
 
             // Arrange
-            var requestBody = "{ \"data\" {";
+            const string requestBody = "{ \"data\" {";
 
-            var route = "/auditEntries";
+            const string route = "/auditEntries";
 
             // Act
-            var (httpResponse, _) = await _testContext.ExecutePostAsync<string>(route, requestBody);
+            (HttpResponseMessage httpResponse, _) = await _testContext.ExecutePostAsync<string>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.UnprocessableEntity);

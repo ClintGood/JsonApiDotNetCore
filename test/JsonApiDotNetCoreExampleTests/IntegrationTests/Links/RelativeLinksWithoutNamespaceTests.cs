@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using JsonApiDotNetCore.Configuration;
@@ -27,7 +28,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 services.AddScoped(typeof(IResourceChangeTracker<>), typeof(NeverSameResourceChangeTracker<>));
             });
 
-            var options = (JsonApiOptions) testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
+            var options = (JsonApiOptions)testContext.Factory.Services.GetRequiredService<IJsonApiOptions>();
             options.IncludeTotalResourceCount = true;
         }
 
@@ -35,7 +36,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
         public async Task Get_primary_resource_by_ID_returns_relative_links()
         {
             // Arrange
-            var album = _fakers.PhotoAlbum.Generate();
+            PhotoAlbum album = _fakers.PhotoAlbum.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -43,15 +44,15 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/photoAlbums/" + album.StringId;
+            string route = "/photoAlbums/" + album.StringId;
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photoAlbums/{album.StringId}");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
@@ -59,16 +60,16 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
             responseDocument.Links.Next.Should().BeNull();
 
             responseDocument.SingleData.Should().NotBeNull();
-            responseDocument.SingleData.Links.Self.Should().Be($"/photoAlbums/{album.StringId}");
-            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be($"/photoAlbums/{album.StringId}/relationships/photos");
-            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be($"/photoAlbums/{album.StringId}/photos");
+            responseDocument.SingleData.Links.Self.Should().Be(route);
+            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be(route + "/relationships/photos");
+            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be(route + "/photos");
         }
 
         [Fact]
         public async Task Get_primary_resources_with_include_returns_relative_links()
         {
             // Arrange
-            var album = _fakers.PhotoAlbum.Generate();
+            PhotoAlbum album = _fakers.PhotoAlbum.Generate();
             album.Photos = _fakers.Photo.Generate(1).ToHashSet();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -78,37 +79,41 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = "/photoAlbums?include=photos";
+            const string route = "/photoAlbums?include=photos";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be("/photoAlbums?include=photos");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
-            responseDocument.Links.First.Should().Be("/photoAlbums?include=photos");
-            responseDocument.Links.Last.Should().Be("/photoAlbums?include=photos");
+            responseDocument.Links.First.Should().Be(route);
+            responseDocument.Links.Last.Should().Be(route);
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
 
+            string albumLink = $"/photoAlbums/{album.StringId}";
+
             responseDocument.ManyData.Should().HaveCount(1);
-            responseDocument.ManyData[0].Links.Self.Should().Be($"/photoAlbums/{album.StringId}");
-            responseDocument.ManyData[0].Relationships["photos"].Links.Self.Should().Be($"/photoAlbums/{album.StringId}/relationships/photos");
-            responseDocument.ManyData[0].Relationships["photos"].Links.Related.Should().Be($"/photoAlbums/{album.StringId}/photos");
+            responseDocument.ManyData[0].Links.Self.Should().Be(albumLink);
+            responseDocument.ManyData[0].Relationships["photos"].Links.Self.Should().Be(albumLink + "/relationships/photos");
+            responseDocument.ManyData[0].Relationships["photos"].Links.Related.Should().Be(albumLink + "/photos");
+
+            string photoLink = $"/photos/{album.Photos.ElementAt(0).StringId}";
 
             responseDocument.Included.Should().HaveCount(1);
-            responseDocument.Included[0].Links.Self.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}");
-            responseDocument.Included[0].Relationships["album"].Links.Self.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}/relationships/album");
-            responseDocument.Included[0].Relationships["album"].Links.Related.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}/album");
+            responseDocument.Included[0].Links.Self.Should().Be(photoLink);
+            responseDocument.Included[0].Relationships["album"].Links.Self.Should().Be(photoLink + "/relationships/album");
+            responseDocument.Included[0].Relationships["album"].Links.Related.Should().Be(photoLink + "/album");
         }
 
         [Fact]
         public async Task Get_secondary_resource_returns_relative_links()
         {
             // Arrange
-            var photo = _fakers.Photo.Generate();
+            Photo photo = _fakers.Photo.Generate();
             photo.Album = _fakers.PhotoAlbum.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -117,32 +122,34 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/photos/{photo.StringId}/album";
+            string route = $"/photos/{photo.StringId}/album";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photos/{photo.StringId}/album");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
 
+            string albumLink = $"/photoAlbums/{photo.Album.StringId}";
+
             responseDocument.SingleData.Should().NotBeNull();
-            responseDocument.SingleData.Links.Self.Should().Be($"/photoAlbums/{photo.Album.StringId}");
-            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be($"/photoAlbums/{photo.Album.StringId}/relationships/photos");
-            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be($"/photoAlbums/{photo.Album.StringId}/photos");
+            responseDocument.SingleData.Links.Self.Should().Be(albumLink);
+            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be(albumLink + "/relationships/photos");
+            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be(albumLink + "/photos");
         }
 
         [Fact]
         public async Task Get_secondary_resources_returns_relative_links()
         {
             // Arrange
-            var album = _fakers.PhotoAlbum.Generate();
+            PhotoAlbum album = _fakers.PhotoAlbum.Generate();
             album.Photos = _fakers.Photo.Generate(1).ToHashSet();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -151,32 +158,34 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/photoAlbums/{album.StringId}/photos";
+            string route = $"/photoAlbums/{album.StringId}/photos";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photoAlbums/{album.StringId}/photos");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
-            responseDocument.Links.First.Should().Be($"/photoAlbums/{album.StringId}/photos");
+            responseDocument.Links.First.Should().Be(route);
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
 
+            string photoLink = $"/photos/{album.Photos.ElementAt(0).StringId}";
+
             responseDocument.ManyData.Should().HaveCount(1);
-            responseDocument.ManyData[0].Links.Self.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}");
-            responseDocument.ManyData[0].Relationships["album"].Links.Self.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}/relationships/album");
-            responseDocument.ManyData[0].Relationships["album"].Links.Related.Should().Be($"/photos/{album.Photos.ElementAt(0).StringId}/album");
+            responseDocument.ManyData[0].Links.Self.Should().Be(photoLink);
+            responseDocument.ManyData[0].Relationships["album"].Links.Self.Should().Be(photoLink + "/relationships/album");
+            responseDocument.ManyData[0].Relationships["album"].Links.Related.Should().Be(photoLink + "/album");
         }
 
         [Fact]
         public async Task Get_HasOne_relationship_returns_relative_links()
         {
             // Arrange
-            var photo = _fakers.Photo.Generate();
+            Photo photo = _fakers.Photo.Generate();
             photo.Album = _fakers.PhotoAlbum.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -185,15 +194,15 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/photos/{photo.StringId}/relationships/album";
+            string route = $"/photos/{photo.StringId}/relationships/album";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photos/{photo.StringId}/relationships/album");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().Be($"/photos/{photo.StringId}/album");
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
@@ -209,7 +218,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
         public async Task Get_HasMany_relationship_returns_relative_links()
         {
             // Arrange
-            var album = _fakers.PhotoAlbum.Generate();
+            PhotoAlbum album = _fakers.PhotoAlbum.Generate();
             album.Photos = _fakers.Photo.Generate(1).ToHashSet();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
@@ -218,17 +227,17 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 await dbContext.SaveChangesAsync();
             });
 
-            var route = $"/photoAlbums/{album.StringId}/relationships/photos";
+            string route = $"/photoAlbums/{album.StringId}/relationships/photos";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecuteGetAsync<Document>(route);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photoAlbums/{album.StringId}/relationships/photos");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().Be($"/photoAlbums/{album.StringId}/photos");
-            responseDocument.Links.First.Should().Be($"/photoAlbums/{album.StringId}/relationships/photos");
+            responseDocument.Links.First.Should().Be(route);
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
@@ -242,7 +251,7 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
         public async Task Create_resource_with_side_effects_and_include_returns_relative_links()
         {
             // Arrange
-            var existingPhoto = _fakers.Photo.Generate();
+            Photo existingPhoto = _fakers.Photo.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -272,40 +281,41 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 }
             };
 
-            var route = "/photoAlbums?include=photos";
+            const string route = "/photoAlbums?include=photos";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePostAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.Created);
 
-            responseDocument.Links.Self.Should().Be("/photoAlbums?include=photos");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
 
-            var newAlbumId = responseDocument.SingleData.Id;
+            string albumLink = $"/photoAlbums/{responseDocument.SingleData.Id}";
 
-            responseDocument.SingleData.Should().NotBeNull();
-            responseDocument.SingleData.Links.Self.Should().Be($"/photoAlbums/{newAlbumId}");
-            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be($"/photoAlbums/{newAlbumId}/relationships/photos");
-            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be($"/photoAlbums/{newAlbumId}/photos");
+            responseDocument.SingleData.Links.Self.Should().Be(albumLink);
+            responseDocument.SingleData.Relationships["photos"].Links.Self.Should().Be(albumLink + "/relationships/photos");
+            responseDocument.SingleData.Relationships["photos"].Links.Related.Should().Be(albumLink + "/photos");
+
+            string photoLink = $"/photos/{existingPhoto.StringId}";
 
             responseDocument.Included.Should().HaveCount(1);
-            responseDocument.Included[0].Links.Self.Should().Be($"/photos/{existingPhoto.StringId}");
-            responseDocument.Included[0].Relationships["album"].Links.Self.Should().Be($"/photos/{existingPhoto.StringId}/relationships/album");
-            responseDocument.Included[0].Relationships["album"].Links.Related.Should().Be($"/photos/{existingPhoto.StringId}/album");
+            responseDocument.Included[0].Links.Self.Should().Be(photoLink);
+            responseDocument.Included[0].Relationships["album"].Links.Self.Should().Be(photoLink + "/relationships/album");
+            responseDocument.Included[0].Relationships["album"].Links.Related.Should().Be(photoLink + "/album");
         }
 
         [Fact]
         public async Task Update_resource_with_side_effects_and_include_returns_relative_links()
         {
             // Arrange
-            var existingPhoto = _fakers.Photo.Generate();
-            var existingAlbum = _fakers.PhotoAlbum.Generate();
+            Photo existingPhoto = _fakers.Photo.Generate();
+            PhotoAlbum existingAlbum = _fakers.PhotoAlbum.Generate();
 
             await _testContext.RunOnDatabaseAsync(async dbContext =>
             {
@@ -333,30 +343,34 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.Links
                 }
             };
 
-            var route = $"/photos/{existingPhoto.StringId}?include=album";
+            string route = $"/photos/{existingPhoto.StringId}?include=album";
 
             // Act
-            var (httpResponse, responseDocument) = await _testContext.ExecutePatchAsync<Document>(route, requestBody);
+            (HttpResponseMessage httpResponse, Document responseDocument) = await _testContext.ExecutePatchAsync<Document>(route, requestBody);
 
             // Assert
             httpResponse.Should().HaveStatusCode(HttpStatusCode.OK);
 
-            responseDocument.Links.Self.Should().Be($"/photos/{existingPhoto.StringId}?include=album");
+            responseDocument.Links.Self.Should().Be(route);
             responseDocument.Links.Related.Should().BeNull();
             responseDocument.Links.First.Should().BeNull();
             responseDocument.Links.Last.Should().BeNull();
             responseDocument.Links.Prev.Should().BeNull();
             responseDocument.Links.Next.Should().BeNull();
 
+            string photoLink = $"/photos/{existingPhoto.StringId}";
+
             responseDocument.SingleData.Should().NotBeNull();
-            responseDocument.SingleData.Links.Self.Should().Be($"/photos/{existingPhoto.StringId}");
-            responseDocument.SingleData.Relationships["album"].Links.Self.Should().Be($"/photos/{existingPhoto.StringId}/relationships/album");
-            responseDocument.SingleData.Relationships["album"].Links.Related.Should().Be($"/photos/{existingPhoto.StringId}/album");
+            responseDocument.SingleData.Links.Self.Should().Be(photoLink);
+            responseDocument.SingleData.Relationships["album"].Links.Self.Should().Be(photoLink + "/relationships/album");
+            responseDocument.SingleData.Relationships["album"].Links.Related.Should().Be(photoLink + "/album");
+
+            string albumLink = $"/photoAlbums/{existingAlbum.StringId}";
 
             responseDocument.Included.Should().HaveCount(1);
-            responseDocument.Included[0].Links.Self.Should().Be($"/photoAlbums/{existingAlbum.StringId}");
-            responseDocument.Included[0].Relationships["photos"].Links.Self.Should().Be($"/photoAlbums/{existingAlbum.StringId}/relationships/photos");
-            responseDocument.Included[0].Relationships["photos"].Links.Related.Should().Be($"/photoAlbums/{existingAlbum.StringId}/photos");
+            responseDocument.Included[0].Links.Self.Should().Be(albumLink);
+            responseDocument.Included[0].Relationships["photos"].Links.Self.Should().Be(albumLink + "/relationships/photos");
+            responseDocument.Included[0].Relationships["photos"].Links.Related.Should().Be(albumLink + "/photos");
         }
     }
 }

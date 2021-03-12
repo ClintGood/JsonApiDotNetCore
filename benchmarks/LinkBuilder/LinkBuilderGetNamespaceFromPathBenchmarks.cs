@@ -4,7 +4,10 @@ using BenchmarkDotNet.Attributes;
 
 namespace Benchmarks.LinkBuilder
 {
-    [MarkdownExporter, SimpleJob(launchCount: 3, warmupCount: 10, targetCount: 20), MemoryDiagnoser]
+    // ReSharper disable once ClassCanBeSealed.Global
+    [MarkdownExporter]
+    [SimpleJob(3, 10, 20)]
+    [MemoryDiagnoser]
     public class LinkBuilderGetNamespaceFromPathBenchmarks
     {
         private const string RequestPath = "/api/some-really-long-namespace-path/resources/current/articles/?some";
@@ -12,14 +15,20 @@ namespace Benchmarks.LinkBuilder
         private const char PathDelimiter = '/';
 
         [Benchmark]
-        public void UsingStringSplit() => GetNamespaceFromPathUsingStringSplit(RequestPath, ResourceName);
+        public void UsingStringSplit()
+        {
+            GetNamespaceFromPathUsingStringSplit(RequestPath, ResourceName);
+        }
 
         [Benchmark]
-        public void UsingReadOnlySpan() => GetNamespaceFromPathUsingReadOnlySpan(RequestPath, ResourceName);
-
-        public static string GetNamespaceFromPathUsingStringSplit(string path, string resourceName)
+        public void UsingReadOnlySpan()
         {
-            StringBuilder namespaceBuilder = new StringBuilder(path.Length);
+            GetNamespaceFromPathUsingReadOnlySpan(RequestPath, ResourceName);
+        }
+
+        private static void GetNamespaceFromPathUsingStringSplit(string path, string resourceName)
+        {
+            var namespaceBuilder = new StringBuilder(path.Length);
             string[] segments = path.Split('/');
 
             for (int index = 1; index < segments.Length; index++)
@@ -33,10 +42,10 @@ namespace Benchmarks.LinkBuilder
                 namespaceBuilder.Append(segments[index]);
             }
 
-            return namespaceBuilder.ToString();
+            _ = namespaceBuilder.ToString();
         }
 
-        public static string GetNamespaceFromPathUsingReadOnlySpan(string path, string resourceName)
+        private static void GetNamespaceFromPathUsingReadOnlySpan(string path, string resourceName)
         {
             ReadOnlySpan<char> resourceNameSpan = resourceName.AsSpan();
             ReadOnlySpan<char> pathSpan = path.AsSpan();
@@ -55,16 +64,15 @@ namespace Benchmarks.LinkBuilder
 
                             bool isAtEnd = lastCharacterIndex == pathSpan.Length;
                             bool hasDelimiterAfterSegment = pathSpan.Length >= lastCharacterIndex + 1 && pathSpan[lastCharacterIndex].Equals(PathDelimiter);
+
                             if (isAtEnd || hasDelimiterAfterSegment)
                             {
-                                return pathSpan.Slice(0, index).ToString();
+                                _ = pathSpan.Slice(0, index).ToString();
                             }
                         }
                     }
                 }
             }
-
-            return string.Empty;
         }
     }
 }

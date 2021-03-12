@@ -1,7 +1,11 @@
+using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+
+// @formatter:wrap_chained_method_calls chop_always
 
 namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public sealed class CompositeDbContext : DbContext
     {
         public DbSet<Car> Cars { get; set; }
@@ -16,7 +20,11 @@ namespace JsonApiDotNetCoreExampleTests.IntegrationTests.CompositeKeys
         protected override void OnModelCreating(ModelBuilder builder)
         {
             builder.Entity<Car>()
-                .HasKey(car => new {car.RegionId, car.LicensePlate});
+                .HasKey(car => new
+                {
+                    car.RegionId,
+                    car.LicensePlate
+                });
 
             builder.Entity<Engine>()
                 .HasOne(engine => engine.Car)

@@ -22,14 +22,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace JsonApiDotNetCore.Configuration
 {
     /// <summary>
-    /// A utility class that builds a JsonApi application. It registers all required services
-    /// and allows the user to override parts of the startup configuration.
+    /// A utility class that builds a JsonApi application. It registers all required services and allows the user to override parts of the startup
+    /// configuration.
     /// </summary>
     internal sealed class JsonApiApplicationBuilder : IJsonApiApplicationBuilder, IDisposable
     {
@@ -39,31 +40,34 @@ namespace JsonApiDotNetCore.Configuration
         private readonly ResourceGraphBuilder _resourceGraphBuilder;
         private readonly ServiceDiscoveryFacade _serviceDiscoveryFacade;
         private readonly ServiceProvider _intermediateProvider;
-        
+
         public Action<MvcOptions> ConfigureMvcOptions { get; set; }
 
         public JsonApiApplicationBuilder(IServiceCollection services, IMvcCoreBuilder mvcBuilder)
         {
-            _services = services ?? throw new ArgumentNullException(nameof(services));
-            _mvcBuilder = mvcBuilder ?? throw new ArgumentNullException(nameof(mvcBuilder));
-            
+            ArgumentGuard.NotNull(services, nameof(services));
+            ArgumentGuard.NotNull(mvcBuilder, nameof(mvcBuilder));
+
+            _services = services;
+            _mvcBuilder = mvcBuilder;
             _intermediateProvider = services.BuildServiceProvider();
+
             var loggerFactory = _intermediateProvider.GetRequiredService<ILoggerFactory>();
-            
+
             _resourceGraphBuilder = new ResourceGraphBuilder(_options, loggerFactory);
             _serviceDiscoveryFacade = new ServiceDiscoveryFacade(_services, _resourceGraphBuilder, _options, loggerFactory);
         }
-        
+
         /// <summary>
-        /// Executes the action provided by the user to configure <see cref="JsonApiOptions"/>.
+        /// Executes the action provided by the user to configure <see cref="JsonApiOptions" />.
         /// </summary>
         public void ConfigureJsonApiOptions(Action<JsonApiOptions> configureOptions)
         {
             configureOptions?.Invoke(_options);
         }
-        
+
         /// <summary>
-        /// Executes the action provided by the user to configure <see cref="ServiceDiscoveryFacade"/>.
+        /// Executes the action provided by the user to configure <see cref="ServiceDiscoveryFacade" />.
         /// </summary>
         public void ConfigureAutoDiscovery(Action<ServiceDiscoveryFacade> configureAutoDiscovery)
         {
@@ -71,13 +75,13 @@ namespace JsonApiDotNetCore.Configuration
         }
 
         /// <summary>
-        /// Configures and builds the resource graph with resources from the provided sources and adds it to the DI container. 
+        /// Configures and builds the resource graph with resources from the provided sources and adds it to the DI container.
         /// </summary>
         public void AddResourceGraph(ICollection<Type> dbContextTypes, Action<ResourceGraphBuilder> configureResourceGraph)
         {
             _serviceDiscoveryFacade.DiscoverResources();
 
-            foreach (var dbContextType in dbContextTypes)
+            foreach (Type dbContextType in dbContextTypes)
             {
                 var dbContext = (DbContext)_intermediateProvider.GetRequiredService(dbContextType);
                 AddResourcesFromDbContext(dbContext, _resourceGraphBuilder);
@@ -85,7 +89,7 @@ namespace JsonApiDotNetCore.Configuration
 
             configureResourceGraph?.Invoke(_resourceGraphBuilder);
 
-            var resourceGraph = _resourceGraphBuilder.Build();
+            IResourceGraph resourceGraph = _resourceGraphBuilder.Build();
             _services.AddSingleton(resourceGraph);
         }
 
@@ -127,9 +131,9 @@ namespace JsonApiDotNetCore.Configuration
             {
                 _services.AddScoped(typeof(DbContextResolver<>));
 
-                foreach (var dbContextType in dbContextTypes)
+                foreach (Type dbContextType in dbContextTypes)
                 {
-                    var contextResolverType = typeof(DbContextResolver<>).MakeGenericType(dbContextType);
+                    Type contextResolverType = typeof(DbContextResolver<>).MakeGenericType(dbContextType);
                     _services.AddScoped(typeof(IDbContextResolver), contextResolverType);
                 }
 
@@ -180,8 +184,8 @@ namespace JsonApiDotNetCore.Configuration
 
         private void AddResourceLayer()
         {
-            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.ResourceDefinitionInterfaces, 
-                typeof(JsonApiResourceDefinition<>), typeof(JsonApiResourceDefinition<,>));
+            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.ResourceDefinitionInterfaces, typeof(JsonApiResourceDefinition<>),
+                typeof(JsonApiResourceDefinition<,>));
 
             _services.AddScoped<IResourceDefinitionAccessor, ResourceDefinitionAccessor>();
             _services.AddScoped<IResourceFactory, ResourceFactory>();
@@ -190,25 +194,23 @@ namespace JsonApiDotNetCore.Configuration
 
         private void AddRepositoryLayer()
         {
-            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.RepositoryInterfaces, 
-                typeof(EntityFrameworkCoreRepository<>), typeof(EntityFrameworkCoreRepository<,>));
+            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.RepositoryInterfaces, typeof(EntityFrameworkCoreRepository<>),
+                typeof(EntityFrameworkCoreRepository<,>));
 
             _services.AddScoped<IResourceRepositoryAccessor, ResourceRepositoryAccessor>();
         }
 
         private void AddServiceLayer()
         {
-            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.ServiceInterfaces, 
-                typeof(JsonApiResourceService<>), typeof(JsonApiResourceService<,>));
+            RegisterImplementationForOpenInterfaces(ServiceDiscoveryFacade.ServiceInterfaces, typeof(JsonApiResourceService<>),
+                typeof(JsonApiResourceService<,>));
         }
 
         private void RegisterImplementationForOpenInterfaces(HashSet<Type> openGenericInterfaces, Type intImplementation, Type implementation)
         {
-            foreach (var openGenericInterface in openGenericInterfaces)
+            foreach (Type openGenericInterface in openGenericInterfaces)
             {
-                var implementationType = openGenericInterface.GetGenericArguments().Length == 1
-                    ? intImplementation
-                    : implementation;
+                Type implementationType = openGenericInterface.GetGenericArguments().Length == 1 ? intImplementation : implementation;
 
                 _services.AddScoped(openGenericInterface, implementationType);
             }
@@ -225,35 +227,42 @@ namespace JsonApiDotNetCore.Configuration
             _services.AddScoped<INullsQueryStringParameterReader, NullsQueryStringParameterReader>();
             _services.AddScoped<IResourceDefinitionQueryableParameterReader, ResourceDefinitionQueryableParameterReader>();
 
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<IIncludeQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<IFilterQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<ISortQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<ISparseFieldSetQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<IPaginationQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<IDefaultsQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<INullsQueryStringParameterReader>());
-            _services.AddScoped<IQueryStringParameterReader>(sp => sp.GetRequiredService<IResourceDefinitionQueryableParameterReader>());
+            RegisterDependentService<IQueryStringParameterReader, IIncludeQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, IFilterQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, ISortQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, ISparseFieldSetQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, IPaginationQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, IDefaultsQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, INullsQueryStringParameterReader>();
+            RegisterDependentService<IQueryStringParameterReader, IResourceDefinitionQueryableParameterReader>();
 
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<IIncludeQueryStringParameterReader>());
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<IFilterQueryStringParameterReader>());
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<ISortQueryStringParameterReader>());
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<ISparseFieldSetQueryStringParameterReader>());
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<IPaginationQueryStringParameterReader>());
-            _services.AddScoped<IQueryConstraintProvider>(sp => sp.GetRequiredService<IResourceDefinitionQueryableParameterReader>());
+            RegisterDependentService<IQueryConstraintProvider, IIncludeQueryStringParameterReader>();
+            RegisterDependentService<IQueryConstraintProvider, IFilterQueryStringParameterReader>();
+            RegisterDependentService<IQueryConstraintProvider, ISortQueryStringParameterReader>();
+            RegisterDependentService<IQueryConstraintProvider, ISparseFieldSetQueryStringParameterReader>();
+            RegisterDependentService<IQueryConstraintProvider, IPaginationQueryStringParameterReader>();
+            RegisterDependentService<IQueryConstraintProvider, IResourceDefinitionQueryableParameterReader>();
 
             _services.AddScoped<IQueryStringReader, QueryStringReader>();
             _services.AddSingleton<IRequestQueryStringAccessor, RequestQueryStringAccessor>();
         }
 
+        private void RegisterDependentService<TCollectionElement, TElementToAdd>()
+            where TCollectionElement : class
+            where TElementToAdd : TCollectionElement
+        {
+            _services.AddScoped<TCollectionElement>(serviceProvider => serviceProvider.GetRequiredService<TElementToAdd>());
+        }
+
         private void AddResourceHooks()
-        { 
+        {
             if (_options.EnableResourceHooks)
             {
                 _services.AddSingleton(typeof(IHooksDiscovery<>), typeof(HooksDiscovery<>));
                 _services.AddScoped(typeof(IResourceHookContainer<>), typeof(ResourceHooksDefinition<>));
                 _services.AddTransient<IResourceHookExecutor, ResourceHookExecutor>();
-                _services.AddTransient<IHookExecutorHelper, HookExecutorHelper>();
-                _services.AddScoped<ITraversalHelper, TraversalHelper>();
+                _services.AddTransient<IHookContainerProvider, HookContainerProvider>();
+                _services.AddScoped<INodeNavigator, NodeNavigator>();
                 _services.AddScoped<IResourceHookExecutorFacade, ResourceHookExecutorFacade>();
             }
             else
@@ -293,12 +302,12 @@ namespace JsonApiDotNetCore.Configuration
 
         private void AddResourcesFromDbContext(DbContext dbContext, ResourceGraphBuilder builder)
         {
-            foreach (var entityType in dbContext.Model.GetEntityTypes())
+            foreach (IEntityType entityType in dbContext.Model.GetEntityTypes())
             {
                 builder.Add(entityType.ClrType);
             }
         }
-        
+
         public void Dispose()
         {
             _intermediateProvider.Dispose();

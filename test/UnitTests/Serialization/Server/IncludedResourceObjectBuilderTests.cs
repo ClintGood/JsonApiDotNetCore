@@ -1,9 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Queries;
 using JsonApiDotNetCore.Resources;
 using JsonApiDotNetCore.Resources.Annotations;
+using JsonApiDotNetCore.Serialization;
 using JsonApiDotNetCore.Serialization.Building;
+using JsonApiDotNetCore.Serialization.Objects;
 using Moq;
 using UnitTests.TestModels;
 using Xunit;
@@ -16,23 +19,23 @@ namespace UnitTests.Serialization.Server
         public void BuildIncluded_DeeplyNestedCircularChainOfSingleData_CanBuild()
         {
             // Arrange
-            var (article, author, _, reviewer, _) = GetAuthorChainInstances();
-            var authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
-            var builder = GetBuilder();
+            (Article article, Person author, _, Person reviewer, _) = GetAuthorChainInstances();
+            IReadOnlyCollection<RelationshipAttribute> authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
+            IncludedResourceObjectBuilder builder = GetBuilder();
 
             // Act
             builder.IncludeRelationshipChain(authorChain, article);
-            var result = builder.Build();
+            IList<ResourceObject> result = builder.Build();
 
             // Assert
             Assert.Equal(6, result.Count);
 
-            var authorResourceObject = result.Single(ro => ro.Type == "people" && ro.Id == author.StringId);
-            var authorFoodRelation = authorResourceObject.Relationships["favoriteFood"].SingleData;
+            ResourceObject authorResourceObject = result.Single(ro => ro.Type == "people" && ro.Id == author.StringId);
+            ResourceIdentifierObject authorFoodRelation = authorResourceObject.Relationships["favoriteFood"].SingleData;
             Assert.Equal(author.FavoriteFood.StringId, authorFoodRelation.Id);
 
-            var reviewerResourceObject = result.Single(ro => ro.Type == "people" && ro.Id == reviewer.StringId);
-            var reviewerFoodRelation = reviewerResourceObject.Relationships["favoriteFood"].SingleData;
+            ResourceObject reviewerResourceObject = result.Single(ro => ro.Type == "people" && ro.Id == reviewer.StringId);
+            ResourceIdentifierObject reviewerFoodRelation = reviewerResourceObject.Relationships["favoriteFood"].SingleData;
             Assert.Equal(reviewer.FavoriteFood.StringId, reviewerFoodRelation.Id);
         }
 
@@ -40,18 +43,18 @@ namespace UnitTests.Serialization.Server
         public void BuildIncluded_DeeplyNestedCircularChainOfManyData_BuildsWithoutDuplicates()
         {
             // Arrange
-            var (article, author, _, _, _) = GetAuthorChainInstances();
-            var secondArticle = _articleFaker.Generate();
+            (Article article, Person author, _, _, _) = GetAuthorChainInstances();
+            Article secondArticle = ArticleFaker.Generate();
             secondArticle.Author = author;
-            var builder = GetBuilder();
+            IncludedResourceObjectBuilder builder = GetBuilder();
 
             // Act
-            var authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
+            IReadOnlyCollection<RelationshipAttribute> authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
             builder.IncludeRelationshipChain(authorChain, article);
             builder.IncludeRelationshipChain(authorChain, secondArticle);
 
             // Assert
-            var result = builder.Build();
+            IList<ResourceObject> result = builder.Build();
             Assert.Equal(6, result.Count);
         }
 
@@ -59,120 +62,156 @@ namespace UnitTests.Serialization.Server
         public void BuildIncluded_OverlappingDeeplyNestedCircularChains_CanBuild()
         {
             // Arrange
-            var authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
-            var (article, author, _, reviewer, reviewerFood) = GetAuthorChainInstances();
-            var sharedBlog = author.Blogs.First();
-            var sharedBlogAuthor = reviewer;
-            var (_, _, _, authorSong) = GetReviewerChainInstances(article, sharedBlog, sharedBlogAuthor);
-            var reviewerChain = GetIncludedRelationshipsChain("reviewer.blogs.author.favoriteSong");
-            var builder = GetBuilder();
+            IReadOnlyCollection<RelationshipAttribute> authorChain = GetIncludedRelationshipsChain("author.blogs.reviewer.favoriteFood");
+            (Article article, Person author, _, Person reviewer, Food reviewerFood) = GetAuthorChainInstances();
+            Blog sharedBlog = author.Blogs.First();
+            Person sharedBlogAuthor = reviewer;
+            Song authorSong = GetReviewerChainInstances(article, sharedBlog, sharedBlogAuthor);
+            IReadOnlyCollection<RelationshipAttribute> reviewerChain = GetIncludedRelationshipsChain("reviewer.blogs.author.favoriteSong");
+            IncludedResourceObjectBuilder builder = GetBuilder();
 
             // Act
             builder.IncludeRelationshipChain(authorChain, article);
             builder.IncludeRelationshipChain(reviewerChain, article);
-            var result = builder.Build();
+            IList<ResourceObject> result = builder.Build();
 
             // Assert
             Assert.Equal(10, result.Count);
-            var overlappingBlogResourceObject = result.Single(ro => ro.Type == "blogs" && ro.Id == sharedBlog.StringId);
+            ResourceObject overlappingBlogResourceObject = result.Single(ro => ro.Type == "blogs" && ro.Id == sharedBlog.StringId);
 
             Assert.Equal(2, overlappingBlogResourceObject.Relationships.Keys.Count);
-            var nonOverlappingBlogs = result.Where(ro => ro.Type == "blogs" && ro.Id != sharedBlog.StringId).ToList();
+            List<ResourceObject> nonOverlappingBlogs = result.Where(ro => ro.Type == "blogs" && ro.Id != sharedBlog.StringId).ToList();
 
-            foreach (var blog in nonOverlappingBlogs)
+            foreach (ResourceObject blog in nonOverlappingBlogs)
+            {
                 Assert.Single(blog.Relationships.Keys);
+            }
 
             Assert.Equal(authorSong.StringId, sharedBlogAuthor.FavoriteSong.StringId);
             Assert.Equal(reviewerFood.StringId, sharedBlogAuthor.FavoriteFood.StringId);
         }
 
-        private (Person, Song, Person, Song) GetReviewerChainInstances(Article article, Blog sharedBlog, Person sharedBlogAuthor)
-        {
-            var reviewer = _personFaker.Generate();
-            article.Reviewer = reviewer;
-
-            var blogs = _blogFaker.Generate(1);
-            blogs.Add(sharedBlog);
-            reviewer.Blogs = blogs.ToHashSet();
-
-            blogs[0].Author = reviewer;
-            var author = _personFaker.Generate();
-            blogs[1].Author = sharedBlogAuthor;
-
-            var authorSong = _songFaker.Generate();
-            author.FavoriteSong = authorSong;
-            sharedBlogAuthor.FavoriteSong = authorSong;
-
-            var reviewerSong = _songFaker.Generate();
-            reviewer.FavoriteSong = reviewerSong;
-
-            return (reviewer, reviewerSong, author, authorSong);
-        }
-
-        private (Article, Person, Food, Person, Food) GetAuthorChainInstances()
-        {
-            var article = _articleFaker.Generate();
-            var author = _personFaker.Generate();
-            article.Author = author;
-
-            var blogs = _blogFaker.Generate(2);
-            author.Blogs = blogs.ToHashSet();
-
-            blogs[0].Reviewer = author;
-            var reviewer = _personFaker.Generate();
-            blogs[1].Reviewer = reviewer;
-
-            var authorFood = _foodFaker.Generate();
-            author.FavoriteFood = authorFood;
-            var reviewerFood = _foodFaker.Generate();
-            reviewer.FavoriteFood = reviewerFood;
-
-            return (article, author, authorFood, reviewer, reviewerFood);
-        }
-
         [Fact]
         public void BuildIncluded_DuplicateChildrenMultipleChains_OnceInOutput()
         {
-            var person = _personFaker.Generate();
-            var articles = _articleFaker.Generate(5);
-            articles.ForEach(a => a.Author = person);
-            articles.ForEach(a => a.Reviewer = person);
-            var builder = GetBuilder();
-            var authorChain = GetIncludedRelationshipsChain("author");
-            var reviewerChain = GetIncludedRelationshipsChain("reviewer");
-            foreach (var article in articles)
+            Person person = PersonFaker.Generate();
+            List<Article> articles = ArticleFaker.Generate(5);
+            articles.ForEach(article => article.Author = person);
+            articles.ForEach(article => article.Reviewer = person);
+            IncludedResourceObjectBuilder builder = GetBuilder();
+            IReadOnlyCollection<RelationshipAttribute> authorChain = GetIncludedRelationshipsChain("author");
+            IReadOnlyCollection<RelationshipAttribute> reviewerChain = GetIncludedRelationshipsChain("reviewer");
+
+            foreach (Article article in articles)
             {
                 builder.IncludeRelationshipChain(authorChain, article);
                 builder.IncludeRelationshipChain(reviewerChain, article);
             }
 
-            var result = builder.Build();
+            IList<ResourceObject> result = builder.Build();
             Assert.Single(result);
             Assert.Equal(person.Name, result[0].Attributes["name"]);
             Assert.Equal(person.Id.ToString(), result[0].Id);
         }
 
-        private List<RelationshipAttribute> GetIncludedRelationshipsChain(string chain)
+        private Song GetReviewerChainInstances(Article article, Blog sharedBlog, Person sharedBlogAuthor)
+        {
+            Person reviewer = PersonFaker.Generate();
+            article.Reviewer = reviewer;
+
+            List<Blog> blogs = BlogFaker.Generate(1);
+            blogs.Add(sharedBlog);
+            reviewer.Blogs = blogs.ToHashSet();
+
+            blogs[0].Author = reviewer;
+            Person author = PersonFaker.Generate();
+            blogs[1].Author = sharedBlogAuthor;
+
+            Song authorSong = SongFaker.Generate();
+            author.FavoriteSong = authorSong;
+            sharedBlogAuthor.FavoriteSong = authorSong;
+
+            Song reviewerSong = SongFaker.Generate();
+            reviewer.FavoriteSong = reviewerSong;
+
+            return authorSong;
+        }
+
+        private AuthorChainInstances GetAuthorChainInstances()
+        {
+            Article article = ArticleFaker.Generate();
+            Person author = PersonFaker.Generate();
+            article.Author = author;
+
+            List<Blog> blogs = BlogFaker.Generate(2);
+            author.Blogs = blogs.ToHashSet();
+
+            blogs[0].Reviewer = author;
+            Person reviewer = PersonFaker.Generate();
+            blogs[1].Reviewer = reviewer;
+
+            Food authorFood = FoodFaker.Generate();
+            author.FavoriteFood = authorFood;
+            Food reviewerFood = FoodFaker.Generate();
+            reviewer.FavoriteFood = reviewerFood;
+
+            return new AuthorChainInstances(article, author, authorFood, reviewer, reviewerFood);
+        }
+
+        private IReadOnlyCollection<RelationshipAttribute> GetIncludedRelationshipsChain(string chain)
         {
             var parsedChain = new List<RelationshipAttribute>();
-            var resourceContext = _resourceGraph.GetResourceContext<Article>();
-            var splitPath = chain.Split('.');
-            foreach (var requestedRelationship in splitPath)
+            ResourceContext resourceContext = ResourceGraph.GetResourceContext<Article>();
+            string[] splitPath = chain.Split('.');
+
+            foreach (string requestedRelationship in splitPath)
             {
-                var relationship = resourceContext.Relationships.Single(r => r.PublicName == requestedRelationship);
+                RelationshipAttribute relationship =
+                    resourceContext.Relationships.Single(nextRelationship => nextRelationship.PublicName == requestedRelationship);
+
                 parsedChain.Add(relationship);
-                resourceContext = _resourceGraph.GetResourceContext(relationship.RightType);
+                resourceContext = ResourceGraph.GetResourceContext(relationship.RightType);
             }
+
             return parsedChain;
         }
 
         private IncludedResourceObjectBuilder GetBuilder()
         {
-            var fields = GetSerializableFields();
-            var links = GetLinkBuilder();
+            IFieldsToSerialize fields = GetSerializableFields();
+            ILinkBuilder links = GetLinkBuilder();
 
-            var accessor = new Mock<IResourceDefinitionAccessor>().Object;
-            return new IncludedResourceObjectBuilder(fields, links, _resourceGraph, Enumerable.Empty<IQueryConstraintProvider>(), accessor, GetSerializerSettingsProvider());
+            IResourceDefinitionAccessor accessor = new Mock<IResourceDefinitionAccessor>().Object;
+
+            return new IncludedResourceObjectBuilder(fields, links, ResourceGraph, Enumerable.Empty<IQueryConstraintProvider>(), accessor,
+                GetSerializerSettingsProvider());
+        }
+
+        private sealed class AuthorChainInstances
+        {
+            public Article Article { get; }
+            public Person Author { get; }
+            public Food AuthorFood { get; }
+            public Person Reviewer { get; }
+            public Food ReviewerFood { get; }
+
+            public AuthorChainInstances(Article article, Person author, Food authorFood, Person reviewer, Food reviewerFood)
+            {
+                Article = article;
+                Author = author;
+                AuthorFood = authorFood;
+                Reviewer = reviewer;
+                ReviewerFood = reviewerFood;
+            }
+
+            public void Deconstruct(out Article article, out Person author, out Food authorFood, out Person reviewer, out Food reviewerFood)
+            {
+                article = Article;
+                author = Author;
+                authorFood = AuthorFood;
+                reviewer = Reviewer;
+                reviewerFood = ReviewerFood;
+            }
         }
     }
 }

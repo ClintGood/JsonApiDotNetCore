@@ -1,29 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 
 namespace JsonApiDotNetCore.Queries.Expressions
 {
     /// <summary>
     /// Represents pagination in a query string, resulting from text such as: 1,articles:2
     /// </summary>
+    [PublicAPI]
     public class PaginationQueryStringValueExpression : QueryExpression
     {
         public IReadOnlyCollection<PaginationElementQueryStringValueExpression> Elements { get; }
 
-        public PaginationQueryStringValueExpression(
-            IReadOnlyCollection<PaginationElementQueryStringValueExpression> elements)
+        public PaginationQueryStringValueExpression(IReadOnlyCollection<PaginationElementQueryStringValueExpression> elements)
         {
-            Elements = elements ?? throw new ArgumentNullException(nameof(elements));
+            ArgumentGuard.NotNullNorEmpty(elements, nameof(elements));
 
-            if (!Elements.Any())
-            {
-                throw new ArgumentException("Must have one or more elements.", nameof(elements));
-            }
+            Elements = elements;
         }
 
-        public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor,
-            TArgument argument)
+        public override TResult Accept<TArgument, TResult>(QueryExpressionVisitor<TArgument, TResult> visitor, TArgument argument)
         {
             return visitor.PaginationQueryStringValue(this, argument);
         }
@@ -45,7 +42,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
                 return false;
             }
 
-            var other = (PaginationQueryStringValueExpression) obj;
+            var other = (PaginationQueryStringValueExpression)obj;
 
             return Elements.SequenceEqual(other.Elements);
         }
@@ -54,7 +51,7 @@ namespace JsonApiDotNetCore.Queries.Expressions
         {
             var hashCode = new HashCode();
 
-            foreach (var element in Elements)
+            foreach (PaginationElementQueryStringValueExpression element in Elements)
             {
                 hashCode.Add(element);
             }

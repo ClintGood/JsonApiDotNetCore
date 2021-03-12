@@ -1,4 +1,3 @@
-using System;
 using JsonApiDotNetCore.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,10 +9,11 @@ namespace JsonApiDotNetCore.Configuration
         /// <summary>
         /// Registers the JsonApiDotNetCore middleware.
         /// </summary>
-        /// <param name="builder">The <see cref="IApplicationBuilder"/> to add the middleware to.</param>
+        /// <param name="builder">
+        /// The <see cref="IApplicationBuilder" /> to add the middleware to.
+        /// </param>
         /// <example>
-        /// The code below is the minimal that is required for proper activation,
-        /// which should be added to your Startup.Configure method.
+        /// The code below is the minimal that is required for proper activation, which should be added to your Startup.Configure method.
         /// <code><![CDATA[
         /// app.UseRouting();
         /// app.UseJsonApi();
@@ -22,13 +22,14 @@ namespace JsonApiDotNetCore.Configuration
         /// </example>
         public static void UseJsonApi(this IApplicationBuilder builder)
         {
-            if (builder == null) throw new ArgumentNullException(nameof(builder));
-            
-            using var scope = builder.ApplicationServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            ArgumentGuard.NotNull(builder, nameof(builder));
+
+            using IServiceScope scope = builder.ApplicationServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
             var inverseNavigationResolver = scope.ServiceProvider.GetRequiredService<IInverseNavigationResolver>();
             inverseNavigationResolver.Resolve();
 
-            var jsonApiApplicationBuilder =  builder.ApplicationServices.GetRequiredService<IJsonApiApplicationBuilder>();
+            var jsonApiApplicationBuilder = builder.ApplicationServices.GetRequiredService<IJsonApiApplicationBuilder>();
+
             jsonApiApplicationBuilder.ConfigureMvcOptions = options =>
             {
                 var inputFormatter = builder.ApplicationServices.GetRequiredService<IJsonApiInputFormatter>();

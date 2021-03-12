@@ -1,4 +1,5 @@
 using System;
+using JetBrains.Annotations;
 using JsonApiDotNetCore.Configuration;
 using JsonApiDotNetCore.Middleware;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace JsonApiDotNetCore.Serialization
 {
     /// <summary>
-    /// A factory class to abstract away the initialization of the serializer from the
-    /// ASP.NET Core formatter pipeline.
+    /// A factory class to abstract away the initialization of the serializer from the ASP.NET Core formatter pipeline.
     /// </summary>
+    [PublicAPI]
     public class ResponseSerializerFactory : IJsonApiSerializerFactory
     {
         private readonly IServiceProvider _provider;
@@ -16,12 +17,15 @@ namespace JsonApiDotNetCore.Serialization
 
         public ResponseSerializerFactory(IJsonApiRequest request, IRequestScopedServiceProvider provider)
         {
-            _request = request ?? throw new ArgumentNullException(nameof(request));
-            _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            ArgumentGuard.NotNull(request, nameof(request));
+            ArgumentGuard.NotNull(provider, nameof(provider));
+
+            _request = request;
+            _provider = provider;
         }
 
         /// <summary>
-        /// Initializes the server serializer using the <see cref="ResourceContext"/> associated with the current request.
+        /// Initializes the server serializer using the <see cref="ResourceContext" /> associated with the current request.
         /// </summary>
         public IJsonApiSerializer GetSerializer()
         {
@@ -30,17 +34,17 @@ namespace JsonApiDotNetCore.Serialization
                 return (IJsonApiSerializer)_provider.GetRequiredService(typeof(AtomicOperationsResponseSerializer));
             }
 
-            var targetType = GetDocumentType();
+            Type targetType = GetDocumentType();
 
-            var serializerType = typeof(ResponseSerializer<>).MakeGenericType(targetType);
-            var serializer = _provider.GetRequiredService(serializerType);
+            Type serializerType = typeof(ResponseSerializer<>).MakeGenericType(targetType);
+            object serializer = _provider.GetRequiredService(serializerType);
 
             return (IJsonApiSerializer)serializer;
         }
 
         private Type GetDocumentType()
         {
-            var resourceContext = _request.SecondaryResource ?? _request.PrimaryResource;
+            ResourceContext resourceContext = _request.SecondaryResource ?? _request.PrimaryResource;
             return resourceContext.ResourceType;
         }
     }
